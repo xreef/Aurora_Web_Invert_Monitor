@@ -52,6 +52,10 @@ bool fixedTime = false;
 
 float setPrecision(float val, byte precision);
 
+#define DSP_GRID_POWER_ALL_FILENAME									"power.jso"		/* Global */
+#define DSP_GRID_CURRENT_ALL_FILENAME								"current.jso"
+#define DSP_GRID_VOLTAGE_ALL_FILENAME								"voltage.jso"
+
 void setup() {
 	// Inizilization of serial debug
 	Serial.begin(19200);
