@@ -28,11 +28,14 @@ char hostname[] = "InverterCentraline";
 // Inverte inizialization
 Aurora inverter = Aurora(2, D2, D3, D1);
 
+void ManageStaticDataCallback ();
 void leggiProduzioneCallback();
 void updateLocalTimeWithNTPCallback();
 
 bool saveJSonToAFile(DynamicJsonDocument doc, String filename);
 JsonObject getJSonFromFile(DynamicJsonDocument doc, String filename);
+
+Thread ManageStaticData = Thread();
 
 Thread LeggiProduzione = Thread();
 
@@ -69,12 +72,12 @@ void setup() {
 	}
 	Serial.println(F("fail."));
 
-	WiFi.hostname(hostname);
-	wifi_station_set_hostname(hostname);
     //WiFiManager
     //Local intialization. Once its business is done, there is no need to keep it around
     WiFiManager wifiManager;
     wifiManager.setConfigPortalTimeout(10);
+	WiFi.hostname(hostname);
+	wifi_station_set_hostname(hostname);
 
 	Serial.print(F("Open config file..."));
 	fs::File configFile = SPIFFS.open("/mc/config.txt", "r");
@@ -143,6 +146,13 @@ void setup() {
     //if you get here you have connected to the WiFi
     Serial.println(F("WIFIManager connected!"));
 
+    Serial.print("IP --> ");
+    Serial.println(WiFi.localIP());
+    Serial.print("GW --> ");
+    Serial.println(WiFi.gatewayIP());
+    Serial.print("SM --> ");
+    Serial.println(WiFi.subnetMask());
+
 	// Start inverter serial
 	Serial.print(F("Initializing Inverter serial..."));
 	inverter.begin();
@@ -155,6 +165,9 @@ void setup() {
 		return;
 	}
 	Serial.println(F("Inizialization done."));
+
+	ManageStaticData.onRun(ManageStaticDataCallback);
+	LeggiProduzione.setInterval(3 * 60 * 60 * 1000);
 
 	// Start thread, and set it every 1 minutes
 	LeggiProduzione.onRun(leggiProduzioneCallback);
@@ -195,6 +208,49 @@ void loop() {
 // We can read/write a file at time in the SD card
 File myFileSDCart; // @suppress("Ambiguous problem")
 
+void ManageStaticDataCallback () {
+	Serial.print(F("Thread call (ManageStaticDataCallback) --> "));
+	Serial.println(getEpochStringByParams(now()));
+
+	Serial.print(F("Data version read... "));
+	Aurora::DataVersion dataVersion = inverter.readVersion();
+
+	if (dataVersion.state.readState == true){
+    	Serial.println(F("done."));
+
+    	Serial.print(F("Create json..."));
+
+		String scopeDirectory = F("static");
+		if (!SD.exists(scopeDirectory)){
+			SD.mkdir(scopeDirectory);
+		}
+
+		String filename = scopeDirectory+"/invinfo.jso";
+
+		DynamicJsonDocument doc;
+		JsonObject rootObj = doc.to<JsonObject>();
+
+		rootObj["lastUpdate"] = getEpochStringByParams(now());
+
+		rootObj["modelNameParam"] = dataVersion.par1;
+		rootObj["modelName"] = dataVersion.getModelName().name;
+		rootObj["modelNameIndoorOutdoorType"] = dataVersion.getIndoorOutdoorAndType();
+
+		rootObj["gridStandardParam"] = dataVersion.par2;
+		rootObj["gridStandard"] = dataVersion.getGridStandard();
+
+		rootObj["trasformerLessParam"] = dataVersion.par3;
+		rootObj["trasformerLess"] = dataVersion.getTrafoOrNonTrafo();
+
+		rootObj["windOrPVParam"] = dataVersion.par4;
+		rootObj["windOrPV"] = dataVersion.getWindOrPV();
+		Serial.println(F("done."));
+
+		saveJSonToAFile(&doc, filename);
+	}
+
+}
+
 void leggiProduzioneCallback() {
 	Serial.print(F("Thread call (leggiProduzioneCallback) --> "));
 	Serial.println(getEpochStringByParams(now()));
@@ -210,11 +266,16 @@ void leggiProduzioneCallback() {
 		if (dce.state.readState==1){
 			unsigned long energy = dce.energy;
 
+			String scopeDirectory = F("monthly");
+			if (!SD.exists(scopeDirectory)){
+				SD.mkdir(scopeDirectory);
+			}
+
 			Aurora::DataDSP dsp = inverter.readDSP(DSP_POWER_PEAK_TODAY_ALL);
 			float powerPeak = dsp.value;
 
 			if (energy && energy > 0) {
-				String filename = getEpochStringByParams(now(), (char*) "%Y%m")
+				String filename =  scopeDirectory+F("/")+getEpochStringByParams(now(), (char*) "%Y%m")
 						+ ".jso";
 				String tagName = getEpochStringByParams(now(), (char*) "%d");
 
@@ -222,6 +283,8 @@ void leggiProduzioneCallback() {
 				JsonObject obj;
 
 				obj = getJSonFromFile(&doc, filename);
+
+				obj["lastUpdate"] = getEpochStringByParams(now());
 
 				JsonObject dayData = obj.createNestedObject(tagName);
 				dayData["pow"] = energy;
@@ -279,6 +342,8 @@ void leggiProduzioneCallback() {
 				JsonObject obj;
 
 				obj = getJSonFromFile(&doc, filenameDir);
+
+				obj["lastUpdate"] = getEpochStringByParams(now());
 
 				JsonArray data;
 				if (!obj.containsKey("data")) {
@@ -413,13 +478,14 @@ void getStats(){
 	Serial.println(F("getMontlyValue"));
 
 	setCrossOrigin();
+	String scopeDirectory = F("monthly");
 
 	if (httpRestServer.arg("month")== ""){     //Parameter not found
 		httpRestServer.send(400, "text/html", "Missing required parameter!");
 		Serial.println(F("No parameter"));
 	}else{     //Parameter found
 		Serial.print(F("Read file: "));
-		String filename = httpRestServer.arg("month")+".jso";
+		String filename = scopeDirectory+'/'+httpRestServer.arg("month")+".jso";
 		if (SD.exists(filename)){
 			myFileSDCart = SD.open(filename);
 			if (myFileSDCart){
@@ -509,6 +575,34 @@ void getConfigFile(){
 	}
 }
 
+void getInverterInfo(){
+	Serial.println(F("getInverterInfo"));
+
+	setCrossOrigin();
+
+	String scopeDirectory = F("static");
+
+	Serial.print(F("Read file: "));
+	String filename = scopeDirectory+'/'+httpRestServer.arg("invinfo")+".jso";
+	if (SD.exists(filename)){
+		myFileSDCart = SD.open(filename);
+		if (myFileSDCart){
+			if (myFileSDCart.available()){
+				Serial.print(F("Stream file..."));
+				httpRestServer.streamFile(myFileSDCart, "application/json");
+				Serial.println(F("done."));
+			}else{
+				Serial.println(F("File not found!"));
+				httpRestServer.send(204, "text/html", "No content found!");
+			}
+			myFileSDCart.close();
+		}
+	}else{
+		Serial.println(F("File not found!"));
+		httpRestServer.send(204, "text/html", "No content found!");
+	}
+}
+
 void restServerRouting() {
     httpRestServer.on("/", HTTP_GET, []() {
     	httpRestServer.send(200, "text/html",
@@ -516,8 +610,11 @@ void restServerRouting() {
     });
     httpRestServer.on("/production", HTTP_GET, getProduction);
     httpRestServer.on("/stats", HTTP_GET, getStats);
+
     httpRestServer.on("/config", HTTP_POST, postConfigFile);
     httpRestServer.on("/config", HTTP_GET, getConfigFile);
+
+    httpRestServer.on("/inverterInfo", HTTP_GET, getInverterInfo);
 }
 
 void updateLocalTimeWithNTPCallback(){
@@ -554,7 +651,6 @@ void updateLocalTimeWithNTPCallback(){
 		Serial.println(getEpochStringByParams(now()));
 	}
 }
-
 
 float setPrecision(float val, byte precision){
 	return ((int)(val*(10*precision)))/(float)(precision*10);
