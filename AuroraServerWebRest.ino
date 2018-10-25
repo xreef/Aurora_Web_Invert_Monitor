@@ -20,7 +20,10 @@ char hostname[] = "InverterCentraline";
 
 // Interval get data
 #define DAILY_INTERVAL 5
-#define CUMULATIVE_INTERVAL 5
+#define CUMULATIVE_INTERVAL 15
+#define CUMULATIVE_TOTAL_INTERVAL 5
+#define STATE_INTERVAL 5
+#define STATIC_DATA_INTERVAL 3 * 60
 
 // SD
 #define CS_PIN D8
@@ -28,14 +31,17 @@ char hostname[] = "InverterCentraline";
 // Inverte inizialization
 Aurora inverter = Aurora(2, D2, D3, D1);
 
-void ManageStaticDataCallback ();
+void manageStaticDataCallback ();
 void leggiProduzioneCallback();
+void leggiStatoInverterCallback();
 void updateLocalTimeWithNTPCallback();
 
-bool saveJSonToAFile(DynamicJsonDocument doc, String filename);
-JsonObject getJSonFromFile(DynamicJsonDocument doc, String filename);
+bool saveJSonToAFile(DynamicJsonDocument *doc, String filename);
+JsonObject getJSonFromFile(DynamicJsonDocument *doc, String filename);
 
 Thread ManageStaticData = Thread();
+
+Thread LeggiStatoInverter = Thread();
 
 Thread LeggiProduzione = Thread();
 
@@ -166,8 +172,12 @@ void setup() {
 	}
 	Serial.println(F("Inizialization done."));
 
-	ManageStaticData.onRun(ManageStaticDataCallback);
-	LeggiProduzione.setInterval(3 * 60 * 60 * 1000);
+	ManageStaticData.onRun(manageStaticDataCallback);
+	ManageStaticData.setInterval(STATIC_DATA_INTERVAL * 60 * 1000);
+
+	// Start thread, and set it every 1 minutes
+	LeggiStatoInverter.onRun(leggiStatoInverterCallback);
+	LeggiStatoInverter.setInterval(STATE_INTERVAL * 60 * 1000);
 
 	// Start thread, and set it every 1 minutes
 	LeggiProduzione.onRun(leggiProduzioneCallback);
@@ -197,6 +207,14 @@ void loop() {
 		LeggiProduzione.run();
 	}
 
+	if (LeggiStatoInverter.shouldRun()) {
+		LeggiStatoInverter.run();
+	}
+
+	if (ManageStaticData.shouldRun()) {
+		ManageStaticData.run();
+	}
+
 	if (UpdateLocalTimeWithNTP.shouldRun()) {
 		UpdateLocalTimeWithNTP.run();
 	}
@@ -208,12 +226,149 @@ void loop() {
 // We can read/write a file at time in the SD card
 File myFileSDCart; // @suppress("Ambiguous problem")
 
-void ManageStaticDataCallback () {
-	Serial.print(F("Thread call (ManageStaticDataCallback) --> "));
+void leggiStatoInverterCallback() {
+	Serial.print(F("Thread call (LeggiStatoInverterCallback) --> "));
+	Serial.println(getEpochStringByParams(now()));
+
+	Aurora::DataState dataState = inverter.readState();
+	if (dataState.state.readState == true) {
+		Serial.println(F("done."));
+
+		Serial.print(F("Create json..."));
+
+		String scopeDirectory = F("states");
+		if (!SD.exists(scopeDirectory)) {
+			SD.mkdir(scopeDirectory);
+		}
+
+		String filename = scopeDirectory + "/alarStat.jso";
+
+		DynamicJsonDocument doc;
+		JsonObject rootObj = doc.to<JsonObject>();
+
+		rootObj["lastUpdate"] = getEpochStringByParams(now());
+
+		rootObj["alarmStateParam"] = dataState.alarmState;
+		rootObj["alarmState"] = dataState.getAlarmState();
+
+		rootObj["channel1StateParam"] = dataState.channel1State;
+		rootObj["channel1State"] = dataState.getDcDcChannel1State();
+
+		rootObj["channel2StateParam"] = dataState.channel2State;
+		rootObj["channel2State"] = dataState.getDcDcChannel2State();
+
+		rootObj["inverterStateParam"] = dataState.inverterState;
+		rootObj["inverterState"] = dataState.getInverterState();
+
+		Serial.println(F("done."));
+
+		saveJSonToAFile(&doc, filename);
+
+		// If alarm present or inverterState not running
+//		if (dataState.alarmState>0 || dataState.inverterState!=2){
+
+		String dayDirectory = getEpochStringByParams(now(), (char*) "%Y%m%d");
+
+		String filenameAL = scopeDirectory + '/' + dayDirectory + "/alarms.jso";
+
+		DynamicJsonDocument docAS;
+		JsonObject obj;
+
+		obj = getJSonFromFile(&docAS, filenameAL);
+
+		obj["lastUpdate"] = getEpochStringByParams(now());
+
+		JsonArray data;
+		if (!obj.containsKey("data")) {
+			data = obj.createNestedArray("data");
+		} else {
+			data = obj["data"];
+		}
+
+		bool inverterProblem = dataState.alarmState > 0
+				|| dataState.inverterState != 2;
+		bool firstElement = data.size() == 0;
+
+		if (inverterProblem || !firstElement) {
+			JsonObject lastData;
+			if (data.size() > 0) {
+				lastData = data[data.size() - 1];
+			}
+
+			bool variationFromPrevious = (data.size() > 0
+					&& (lastData["asp"] != dataState.alarmState
+							|| lastData["c1sp"] != dataState.channel1State
+							|| lastData["c2sp"] != dataState.channel2State
+							|| lastData["isp"] != dataState.inverterState));
+
+			Serial.print(F("Inverter problem --> "));
+			Serial.println(inverterProblem);
+
+			Serial.print(F("firstElement --> "));
+			Serial.println(firstElement);
+
+			Serial.print(F("Inverter problem --> "));
+			Serial.println(inverterProblem);
+
+			if ((inverterProblem && firstElement)
+					|| (!firstElement && variationFromPrevious)) {
+
+				JsonObject objArrayData = data.createNestedObject();
+
+				objArrayData["h"] = getEpochStringByParams(now(),
+						(char*) "%H%M");
+
+				objArrayData["asp"] = dataState.alarmState;
+				//			objArrayData["as"] = dataState.getAlarmState();
+
+				objArrayData["c1sp"] = dataState.channel1State;
+				//			objArrayData["c1s"] = dataState.getDcDcChannel1State();
+
+				objArrayData["c2sp"] = dataState.channel2State;
+				//			objArrayData["c2s"] = dataState.getDcDcChannel2State();
+
+				objArrayData["isp"] = dataState.inverterState;
+				//			objArrayData["is"] = dataState.getInverterState();
+
+				Serial.println(F("Store alarms --> "));
+				//				serializeJson(doc, Serial);
+				Serial.print(docAS.memoryUsage());
+				Serial.println();
+
+				if (!SD.exists(scopeDirectory + '/' + dayDirectory)) {
+					SD.mkdir(scopeDirectory + '/' + dayDirectory);
+				}
+
+				saveJSonToAFile(&docAS, filenameAL);
+			}
+
+		}
+//		}
+	}
+
+}
+
+void manageStaticDataCallback () {
+	Serial.print(F("Thread call (manageStaticDataCallback) --> "));
 	Serial.println(getEpochStringByParams(now()));
 
 	Serial.print(F("Data version read... "));
 	Aurora::DataVersion dataVersion = inverter.readVersion();
+
+	Serial.print(F("Firmware release read... "));
+	Aurora::DataFirmwareRelease firmwareRelease = inverter.readFirmwareRelease();
+
+	Serial.print(F("System SN read... "));
+	Aurora::DataSystemSerialNumber systemSN = inverter.readSystemSerialNumber();
+
+	Serial.print(F("Manufactoru Week Year read... "));
+	Aurora::DataManufacturingWeekYear manufactoryWeekYear = inverter.readManufacturingWeekYear();
+
+	Serial.print(F("systemPN read... "));
+	Aurora::DataSystemPN systemPN = inverter.readSystemPN();
+
+	Serial.print(F("configStatus read... "));
+	Aurora::DataConfigStatus configStatus = inverter.readConfig();
 
 	if (dataVersion.state.readState == true){
     	Serial.println(F("done."));
@@ -244,6 +399,20 @@ void ManageStaticDataCallback () {
 
 		rootObj["windOrPVParam"] = dataVersion.par4;
 		rootObj["windOrPV"] = dataVersion.getWindOrPV();
+
+		rootObj["firmwareRelease"] = firmwareRelease.release;
+		rootObj["systemSN"] = systemSN.SerialNumber;
+
+		rootObj["systemPN"] = systemPN.PN;
+
+		JsonObject mWY = rootObj.createNestedObject("manufactory");
+		mWY["Year"] = manufactoryWeekYear.Year;
+		mWY["Week"] = manufactoryWeekYear.Week;
+
+		JsonObject cs = rootObj.createNestedObject("configStatus");
+		cs["code"] = configStatus.configStatus;
+		cs["desc"] = configStatus.getConfigStatus();
+
 		Serial.println(F("done."));
 
 		saveJSonToAFile(&doc, filename);
@@ -259,15 +428,16 @@ void leggiProduzioneCallback() {
 
 	// Save cumulative data
 	if (nowDt.tm_min % CUMULATIVE_INTERVAL == 0) {
-		Aurora::DataCumulatedEnergy dce = inverter.readCumulatedEnergy(CUMULATED_DAILY_ENERGY);
+		Aurora::DataCumulatedEnergy dce = inverter.readCumulatedEnergy(
+		CUMULATED_DAILY_ENERGY);
 		Serial.print(F("Read state --> "));
 		Serial.println(dce.state.readState);
 
-		if (dce.state.readState==1){
+		if (dce.state.readState == 1) {
 			unsigned long energy = dce.energy;
 
 			String scopeDirectory = F("monthly");
-			if (!SD.exists(scopeDirectory)){
+			if (!SD.exists(scopeDirectory)) {
 				SD.mkdir(scopeDirectory);
 			}
 
@@ -275,7 +445,8 @@ void leggiProduzioneCallback() {
 			float powerPeak = dsp.value;
 
 			if (energy && energy > 0) {
-				String filename =  scopeDirectory+F("/")+getEpochStringByParams(now(), (char*) "%Y%m")
+				String filename = scopeDirectory + F("/")
+						+ getEpochStringByParams(now(), (char*) "%Y%m")
 						+ ".jso";
 				String tagName = getEpochStringByParams(now(), (char*) "%d");
 
@@ -297,24 +468,74 @@ void leggiProduzioneCallback() {
 
 				saveJSonToAFile(&doc, filename);
 			}
+
 		}
 	}
 
-//	Serial.println("CHECK COND");
-//	Serial.println(nowDt.tm_min);
-//	Serial.println(DAILY_INTERVAL);
-//	Serial.println(nowDt.tm_min % DAILY_INTERVAL);
+	// Save cumulative data
+	if (nowDt.tm_min % CUMULATIVE_TOTAL_INTERVAL == 0) {
+
+		Serial.println("Get all totals.");
+		Aurora::DataCumulatedEnergy dce = inverter.readCumulatedEnergy(
+		CUMULATED_TOTAL_ENERGY_LIFETIME);
+		unsigned long energyLifetime = dce.energy;
+		Serial.println(energyLifetime);
+
+		if (dce.state.readState == 1) {
+
+			dce = inverter.readCumulatedEnergy(CUMULATED_YEARLY_ENERGY);
+			unsigned long energyYearly = dce.energy;
+			Serial.println(energyYearly);
+
+			dce = inverter.readCumulatedEnergy(CUMULATED_MONTHLY_ENERGY);
+			unsigned long energyMonthly = dce.energy;
+			Serial.println(energyMonthly);
+
+			dce = inverter.readCumulatedEnergy(CUMULATED_WEEKLY_ENERGY);
+			unsigned long energyWeekly = dce.energy;
+			Serial.println(energyWeekly);
+
+			String scopeDirectory = F("states");
+			if (!SD.exists(scopeDirectory)) {
+				SD.mkdir(scopeDirectory);
+			}
+			if (energyLifetime && energyLifetime > 0) {
+				String filename = scopeDirectory + F("/lastStat.jso");
+				String tagName = getEpochStringByParams(now(), (char*) "%d");
+
+				DynamicJsonDocument doc;
+				JsonObject obj;
+
+				obj = getJSonFromFile(&doc, filename);
+
+				obj["lastUpdate"] = getEpochStringByParams(now());
+
+//			JsonObject dayData = obj.createNestedObject(tagName);
+				obj["energyLifetime"] = energyLifetime;
+				obj["energyYearly"] = energyYearly;
+				obj["energyMonthly"] = energyMonthly;
+				obj["energyWeekly"] = energyWeekly;
+
+				Serial.print(F("Store energyLifetime energy --> "));
+				//				serializeJson(doc, Serial);
+				Serial.print(doc.memoryUsage());
+				Serial.println();
+
+				saveJSonToAFile(&doc, filename);
+			}
+		}
+	}
 
 	String scopeDirectory = F("product");
-	if (!SD.exists(scopeDirectory)){
+	if (!SD.exists(scopeDirectory)) {
 		SD.mkdir(scopeDirectory);
 	}
-	for (int i=0; i<3; i++){
-	if (nowDt.tm_min % DAILY_INTERVAL == 0) {
-		byte read = DSP_GRID_POWER_ALL;
-		String filename = DSP_GRID_POWER_ALL_FILENAME;
+	for (int i = 0; i < 3; i++) {
+		if (nowDt.tm_min % DAILY_INTERVAL == 0) {
+			byte read = DSP_GRID_POWER_ALL;
+			String filename = DSP_GRID_POWER_ALL_FILENAME;
 
-		switch (i) {
+			switch (i) {
 			case (1):
 				read = DSP_GRID_CURRENT_ALL;
 				filename = DSP_GRID_CURRENT_ALL_FILENAME;
@@ -323,52 +544,53 @@ void leggiProduzioneCallback() {
 				read = DSP_GRID_VOLTAGE_ALL;
 				filename = DSP_GRID_VOLTAGE_ALL_FILENAME;
 				break;
-		}
-		Aurora::DataDSP dsp = inverter.readDSP(read);
-		Serial.print(F("Read state --> "));
-		Serial.println(dsp.state.readState);
-		if (dsp.state.readState == 1){
-			float val = dsp.value;
+			}
 
-			if (val && val > 0) {
-				String dataDirectory = getEpochStringByParams(now(), (char*) "%Y%m%d");
-				if (i==0 && !SD.exists(scopeDirectory+'/'+dataDirectory)){
-					SD.mkdir(scopeDirectory+'/'+dataDirectory);
+			Aurora::DataDSP dsp = inverter.readDSP(read);
+			Serial.print(F("Read state --> "));
+			Serial.println(dsp.state.readState);
+			if (dsp.state.readState == 1) {
+				float val = dsp.value;
+
+				if (val && val > 0) {
+					String dataDirectory = getEpochStringByParams(now(),
+							(char*) "%Y%m%d");
+
+					if (i == 0
+							&& !SD.exists(
+									scopeDirectory + '/' + dataDirectory)) {
+						SD.mkdir(scopeDirectory + '/' + dataDirectory);
+					}
+
+					String filenameDir = scopeDirectory + F("/") + dataDirectory
+							+ F("/") + filename;
+
+					DynamicJsonDocument doc;
+					JsonObject obj;
+
+					obj = getJSonFromFile(&doc, filenameDir);
+
+					obj["lastUpdate"] = getEpochStringByParams(now());
+
+					JsonArray data;
+					if (!obj.containsKey("data")) {
+						data = obj.createNestedArray("data");
+					} else {
+						data = obj["data"];
+					}
+
+					JsonObject objArrayData = data.createNestedObject();
+					objArrayData["h"] = getEpochStringByParams(now(),
+							(char*) "%H%M");
+					objArrayData["val"] = setPrecision(val, 1);
+					Serial.println(F("Store production --> "));
+					Serial.print(doc.memoryUsage());
+					Serial.println();
+
+					saveJSonToAFile(&doc, filenameDir);
 				}
-
-				String filenameDir = scopeDirectory+F("/")+dataDirectory+F("/")+filename;
-
-				DynamicJsonDocument doc;
-				JsonObject obj;
-
-				obj = getJSonFromFile(&doc, filenameDir);
-
-				obj["lastUpdate"] = getEpochStringByParams(now());
-
-				JsonArray data;
-				if (!obj.containsKey("data")) {
-					data = obj.createNestedArray("data");
-				} else {
-					data = obj["data"];
-				}
-
-				JsonObject objArrayData = data.createNestedObject();
-				objArrayData["h"] = getEpochStringByParams(now(), (char*) "%H%M");
-//				printf("%.01f\n", power);
-//				printf("%.01f\n", current);
-//				printf("%.01f\n", voltage);
-				objArrayData["val"] = setPrecision(val, 1);
-//				objArrayData["A"] = setPrecision(current, 1);
-//				objArrayData["V"] = setPrecision(voltage, 1);
-				Serial.println(F("Store production --> "));
-//				serializeJson(doc, Serial);
-				Serial.print(doc.memoryUsage());
-				Serial.println();
-
-				saveJSonToAFile(&doc, filenameDir);
 			}
 		}
-	}
 	}
 }
 
@@ -440,6 +662,29 @@ void setCrossOrigin(){
 	httpRestServer.sendHeader("Access-Control-Allow-Headers", "*");
 };
 
+void streamFileOnRest(String filename){
+	if (SD.exists(filename)){
+		myFileSDCart = SD.open(filename);
+		if (myFileSDCart){
+			if (myFileSDCart.available()){
+				Serial.print(F("Stream file..."));
+				httpRestServer.streamFile(myFileSDCart, "application/json");
+				Serial.println(F("done."));
+			}else{
+				Serial.println(F("Data not available!"));
+				httpRestServer.send(204, "text/html", "Data not available!");
+			}
+			myFileSDCart.close();
+		}else{
+			Serial.println(F("File not found!"));
+			httpRestServer.send(204, "text/html", "No content found!");
+		}
+	}else{
+		Serial.println(F("File not found!"));
+		httpRestServer.send(204, "text/html", "File not exist!");
+	}
+}
+
 void getProduction(){
 	Serial.println(F("getProduction"));
 
@@ -454,27 +699,28 @@ void getProduction(){
 
 		Serial.println(filename);
 
-		if (SD.exists(filename)){
-			myFileSDCart = SD.open(filename);
-			if (myFileSDCart){
-				if (myFileSDCart.available()){
-					Serial.print(F("Stream file..."));
-					httpRestServer.streamFile(myFileSDCart, "application/json");
-					Serial.println(F("done."));
-				}else{
-					Serial.println(F("File not found!"));
-					httpRestServer.send(204, "text/html", "No content found!");
-				}
-				myFileSDCart.close();
-			}
-		}else{
-			Serial.println(F("File not found!"));
-			httpRestServer.send(204, "text/html", "No content found!");
-		}
+		streamFileOnRest(filename);
 	}
 }
 
-void getStats(){
+void getProductionTotal(){
+	Serial.println(F("getProduction"));
+
+	setCrossOrigin();
+
+
+	Serial.print(F("Read file: "));
+	String scopeDirectory = F("states");
+	String filename =  scopeDirectory+F("/lastStat.jso");
+
+
+	Serial.println(filename);
+
+	streamFileOnRest(filename);
+
+}
+
+void getMontlyValue(){
 	Serial.println(F("getMontlyValue"));
 
 	setCrossOrigin();
@@ -486,23 +732,7 @@ void getStats(){
 	}else{     //Parameter found
 		Serial.print(F("Read file: "));
 		String filename = scopeDirectory+'/'+httpRestServer.arg("month")+".jso";
-		if (SD.exists(filename)){
-			myFileSDCart = SD.open(filename);
-			if (myFileSDCart){
-				if (myFileSDCart.available()){
-					Serial.print(F("Stream file..."));
-					httpRestServer.streamFile(myFileSDCart, "application/json");
-					Serial.println(F("done."));
-				}else{
-					Serial.println(F("File not found!"));
-					httpRestServer.send(204, "text/html", "No content found!");
-				}
-				myFileSDCart.close();
-			}
-		}else{
-			Serial.println(F("File not found!"));
-			httpRestServer.send(204, "text/html", "No content found!");
-		}
+		streamFileOnRest(filename);
 	}
 }
 
@@ -583,24 +813,90 @@ void getInverterInfo(){
 	String scopeDirectory = F("static");
 
 	Serial.print(F("Read file: "));
-	String filename = scopeDirectory+'/'+httpRestServer.arg("invinfo")+".jso";
-	if (SD.exists(filename)){
-		myFileSDCart = SD.open(filename);
-		if (myFileSDCart){
-			if (myFileSDCart.available()){
-				Serial.print(F("Stream file..."));
-				httpRestServer.streamFile(myFileSDCart, "application/json");
-				Serial.println(F("done."));
-			}else{
-				Serial.println(F("File not found!"));
-				httpRestServer.send(204, "text/html", "No content found!");
-			}
-			myFileSDCart.close();
+	String filename = scopeDirectory+"/invinfo.jso";
+	streamFileOnRest(filename);
+}
+
+void inverterDayWithProblem() {
+	Serial.println(F("inverterDayWithProblem"));
+
+	setCrossOrigin();
+
+	String scopeDirectory = F("states");
+
+	myFileSDCart = SD.open(scopeDirectory);
+
+	DynamicJsonDocument doc;
+	JsonObject rootObj = doc.to<JsonObject>();
+
+	JsonArray data = rootObj.createNestedArray("data");
+
+	while (true) {
+
+		File entry = myFileSDCart.openNextFile();
+		if (!entry) {
+			// no more files
+			break;
 		}
-	}else{
-		Serial.println(F("File not found!"));
+		Serial.println(entry.name());
+		if (entry.isDirectory()) {
+			data.add(entry.name());
+		}
+		entry.close();
+	}
+
+	myFileSDCart.close();
+
+	if (data.size() > 0) {
+		Serial.print(F("Stream file..."));
+		String buf;
+		serializeJson(rootObj, buf);
+		httpRestServer.send(200, "application/json", buf);
+		Serial.println(F("done."));
+	} else {
+		Serial.println(F("No content found!"));
 		httpRestServer.send(204, "text/html", "No content found!");
 	}
+}
+
+void getInverterDayState() {
+	Serial.println(F("getInverterDayState"));
+
+	setCrossOrigin();
+
+	String scopeDirectory = F("states");
+
+	Serial.print(F("Read file: "));
+
+	if (httpRestServer.arg("day") == "") {     //Parameter not found
+		httpRestServer.send(400, "text/html", "Missing required parameter!");
+		Serial.println(F("No parameter"));
+	} else {     //Parameter found
+
+		String filename;
+		String parameter = httpRestServer.arg("day");
+		filename = scopeDirectory + '/' + parameter + "/alarms.jso";
+
+		Serial.println(filename);
+
+		streamFileOnRest(filename);
+	}
+}
+
+void getInverterLastState(){
+	Serial.println(F("getInverterLastState"));
+
+	setCrossOrigin();
+
+	String scopeDirectory = F("states");
+
+	Serial.print(F("Read file: "));
+
+	String filename;
+	String parameter = httpRestServer.arg("day");
+	filename = scopeDirectory+"/alarStat.jso";
+
+	streamFileOnRest(filename);
 }
 
 void restServerRouting() {
@@ -609,12 +905,16 @@ void restServerRouting() {
             "Welcome to the Inverter Centraline REST Web Server");
     });
     httpRestServer.on("/production", HTTP_GET, getProduction);
-    httpRestServer.on("/stats", HTTP_GET, getStats);
+    httpRestServer.on("/productionTotal", HTTP_GET, getProductionTotal);
+    httpRestServer.on("/monthly", HTTP_GET, getMontlyValue);
 
     httpRestServer.on("/config", HTTP_POST, postConfigFile);
     httpRestServer.on("/config", HTTP_GET, getConfigFile);
 
     httpRestServer.on("/inverterInfo", HTTP_GET, getInverterInfo);
+    httpRestServer.on("/inverterState", HTTP_GET, getInverterLastState);
+    httpRestServer.on("/inverterDayWithProblem", HTTP_GET, inverterDayWithProblem);
+    httpRestServer.on("/inverterDayState", HTTP_GET, getInverterDayState);
 }
 
 void updateLocalTimeWithNTPCallback(){
