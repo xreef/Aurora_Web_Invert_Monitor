@@ -457,7 +457,14 @@ void leggiProduzioneCallback() {
 
 				obj["lastUpdate"] = getEpochStringByParams(now());
 
-				JsonObject dayData = obj.createNestedObject(tagName);
+				JsonObject series;
+				if (!obj.containsKey("series")) {
+					series = obj.createNestedObject("series");
+				} else {
+					series = obj["series"];
+				}
+
+				JsonObject dayData = series.createNestedObject(tagName);
 				dayData["pow"] = energy;
 				dayData["powPeak"] = setPrecision(powerPeak, 1);
 
@@ -495,11 +502,15 @@ void leggiProduzioneCallback() {
 			unsigned long energyWeekly = dce.energy;
 			Serial.println(energyWeekly);
 
+			dce = inverter.readCumulatedEnergy(CUMULATED_DAILY_ENERGY);
+			unsigned long energyDaily = dce.energy;
+			Serial.println(energyDaily);
+
 			String scopeDirectory = F("states");
 			if (!SD.exists(scopeDirectory)) {
 				SD.mkdir(scopeDirectory);
 			}
-			if (energyLifetime && energyLifetime > 0) {
+			if (energyLifetime) {
 				String filename = scopeDirectory + F("/lastStat.jso");
 				String tagName = getEpochStringByParams(now(), (char*) "%d");
 
@@ -508,6 +519,55 @@ void leggiProduzioneCallback() {
 
 				obj = getJSonFromFile(&doc, filename);
 
+				if (obj.containsKey("energyMonthly")){
+					if (obj["energyMonthly"]>energyMonthly){
+						String dir = scopeDirectory +"/months";
+						if (!SD.exists(dir)) {
+							SD.mkdir(dir);
+						}
+
+						obj.remove("energyWeekly");
+						obj.remove("energyDaily");
+
+						String filenamem = dir +'/'+getEpochStringByParams(now(), (char*) "%Y")+ F(".jso");
+						DynamicJsonDocument docM;
+						JsonObject objM = getJSonFromFile(&docM, filenamem);
+
+						JsonArray dataM;
+						if (!objM.containsKey("data")) {
+							dataM = objM.createNestedArray("data");
+						} else {
+							dataM = objM["data"];
+						}
+
+						dataM.add(obj);
+
+						saveJSonToAFile(&doc, filenamem);
+					}
+				}
+				if (obj.containsKey("energyYearly")){
+					if (obj["energyYearly"]>energyYearly){
+						obj.remove("energyWeekly");
+						obj.remove("energyMonthly");
+						obj.remove("energyDaily");
+
+						String filenamem = scopeDirectory + F("/years.jso");
+						DynamicJsonDocument docM;
+						JsonObject objM = getJSonFromFile(&docM, filenamem);
+
+						JsonArray dataM;
+						if (!objM.containsKey("data")) {
+							dataM = objM.createNestedArray("data");
+						} else {
+							dataM = objM["data"];
+						}
+
+						dataM.add(obj);
+
+						saveJSonToAFile(&doc, filenamem);
+					}
+				}
+
 				obj["lastUpdate"] = getEpochStringByParams(now());
 
 //			JsonObject dayData = obj.createNestedObject(tagName);
@@ -515,6 +575,7 @@ void leggiProduzioneCallback() {
 				obj["energyYearly"] = energyYearly;
 				obj["energyMonthly"] = energyMonthly;
 				obj["energyWeekly"] = energyWeekly;
+				obj["energyDaily"] = energyDaily;
 
 				Serial.print(F("Store energyLifetime energy --> "));
 				//				serializeJson(doc, Serial);
