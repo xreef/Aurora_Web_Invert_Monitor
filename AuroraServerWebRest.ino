@@ -16,6 +16,8 @@
 
 #include <ArduinoJson.h>
 
+#include <EMailSender.h>
+
 char hostname[] = "InverterCentraline";
 
 // Interval get data
@@ -53,7 +55,7 @@ void restServerRouting();
 WiFiUDP ntpUDP;
 // By default 'pool.ntp.org' is used with 60 seconds update interval and
 // no offset
-NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", 2*60*60, 60*60*1000);
+NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", 1*60*60, 60*60*1000);
 
 Thread UpdateLocalTimeWithNTP = Thread();
 
@@ -64,6 +66,8 @@ float setPrecision(float val, byte precision);
 #define DSP_GRID_POWER_ALL_FILENAME									"power.jso"		/* Global */
 #define DSP_GRID_CURRENT_ALL_FILENAME								"current.jso"
 #define DSP_GRID_VOLTAGE_ALL_FILENAME								"voltage.jso"
+
+EMailSender emailSend("smtp.mischianti@gmail.com", "cicciolo77.");
 
 void setup() {
 	// Inizilization of serial debug
@@ -129,6 +133,10 @@ void setup() {
 		    //end-block2
 
 		    wifiManager.setSTAStaticIPConfig(_ip, _gw, _sn);
+
+		    timeClient.setTimeOffset(1*60*60);
+
+		    emailSend.setEMailLogin("smtp.mischianti@gmail.com");
 		}
 	}else{
 	    Serial.println("fail.");
@@ -236,7 +244,7 @@ void leggiStatoInverterCallback() {
 
 		Serial.print(F("Create json..."));
 
-		String scopeDirectory = F("states");
+		String scopeDirectory = F("alarms");
 		if (!SD.exists(scopeDirectory)) {
 			SD.mkdir(scopeDirectory);
 		}
@@ -313,6 +321,8 @@ void leggiStatoInverterCallback() {
 			if ((inverterProblem && firstElement)
 					|| (!firstElement && variationFromPrevious)) {
 
+
+
 				JsonObject objArrayData = data.createNestedObject();
 
 				objArrayData["h"] = getEpochStringByParams(now(),
@@ -340,6 +350,21 @@ void leggiStatoInverterCallback() {
 				}
 
 				saveJSonToAFile(&docAS, filenameAL);
+
+			    EMailSender::EMailMessage message;
+			    message.subject = "Problema all'Inverter ";
+			    message.message = "E' stato rilevato un problema all'inverter:<br>Alarm: "+dataState.getAlarmState()+
+			    		"<br>CH1: "+dataState.getDcDcChannel1State() + "<br>CH2: "+dataState.getDcDcChannel2State()+
+						"<br>Stato: "+dataState.getInverterState();
+
+			    EMailSender::Response resp = emailSend.send("renzo.mischianti@gmail.com", message);
+
+			    Serial.println("Sending status: ");
+
+			    Serial.println(resp.status);
+			    Serial.println(resp.code);
+			    Serial.println(resp.desc);
+
 			}
 
 		}
@@ -519,6 +544,39 @@ void leggiProduzioneCallback() {
 
 				obj = getJSonFromFile(&doc, filename);
 
+				if (obj.containsKey("energyWeekly")){
+					if (obj["energyWeekly"]>energyWeekly){
+						String dir = scopeDirectory +"/weeks";
+						if (!SD.exists(dir)) {
+							SD.mkdir(dir);
+						}
+						obj.remove("lastUpdate");
+						obj.remove("energyLifetime");
+						obj.remove("energyYearly");
+						obj.remove("energyDaily");
+						obj.remove("energyMonthly");
+
+						obj.remove("M");
+						obj.remove("Y");
+
+						String filenamem = dir +'/'+getEpochStringByParams(now(), (char*) "%Y")+ F(".jso");
+						DynamicJsonDocument docM;
+						JsonObject objM = getJSonFromFile(&docM, filenamem);
+
+						objM["lastUpdate"] = getEpochStringByParams(now());
+
+						JsonArray dataM;
+						if (!objM.containsKey("data")) {
+							dataM = objM.createNestedArray("data");
+						} else {
+							dataM = objM["data"];
+						}
+
+						dataM.add(obj);
+
+						saveJSonToAFile(&docM, filenamem);
+					}
+				}
 				if (obj.containsKey("energyMonthly")){
 					if (obj["energyMonthly"]>energyMonthly){
 						String dir = scopeDirectory +"/months";
@@ -526,13 +584,20 @@ void leggiProduzioneCallback() {
 							SD.mkdir(dir);
 						}
 
+						obj.remove("lastUpdate");
+						obj.remove("energyLifetime");
 						obj.remove("energyWeekly");
 						obj.remove("energyDaily");
+
+						obj.remove("W");
+						obj.remove("Y");
 
 						String filenamem = dir +'/'+getEpochStringByParams(now(), (char*) "%Y")+ F(".jso");
 						DynamicJsonDocument docM;
 						JsonObject objM = getJSonFromFile(&docM, filenamem);
 
+						objM["lastUpdate"] = getEpochStringByParams(now());
+
 						JsonArray dataM;
 						if (!objM.containsKey("data")) {
 							dataM = objM.createNestedArray("data");
@@ -542,19 +607,27 @@ void leggiProduzioneCallback() {
 
 						dataM.add(obj);
 
-						saveJSonToAFile(&doc, filenamem);
+						saveJSonToAFile(&docM, filenamem);
 					}
 				}
 				if (obj.containsKey("energyYearly")){
 					if (obj["energyYearly"]>energyYearly){
+
+						obj.remove("lastUpdate");
+
 						obj.remove("energyWeekly");
 						obj.remove("energyMonthly");
 						obj.remove("energyDaily");
+
+						obj.remove("W");
+						obj.remove("M");
 
 						String filenamem = scopeDirectory + F("/years.jso");
 						DynamicJsonDocument docM;
 						JsonObject objM = getJSonFromFile(&docM, filenamem);
 
+						objM["lastUpdate"] = getEpochStringByParams(now());
+
 						JsonArray dataM;
 						if (!objM.containsKey("data")) {
 							dataM = objM.createNestedArray("data");
@@ -564,7 +637,7 @@ void leggiProduzioneCallback() {
 
 						dataM.add(obj);
 
-						saveJSonToAFile(&doc, filenamem);
+						saveJSonToAFile(&docM, filenamem);
 					}
 				}
 
@@ -576,6 +649,10 @@ void leggiProduzioneCallback() {
 				obj["energyMonthly"] = energyMonthly;
 				obj["energyWeekly"] = energyWeekly;
 				obj["energyDaily"] = energyDaily;
+
+				obj["W"] = getEpochStringByParams(now(), (char*) "%Y%W");
+				obj["M"] = getEpochStringByParams(now(), (char*) "%Y%m");
+				obj["Y"] = getEpochStringByParams(now(), (char*) "%Y");
 
 				Serial.print(F("Store energyLifetime energy --> "));
 				//				serializeJson(doc, Serial);
@@ -800,6 +877,8 @@ void getMontlyValue(){
 void postConfigFile() {
 	Serial.println(F("postConfigFile"));
 
+	setCrossOrigin();
+
     String postBody = httpRestServer.arg("plain");
     Serial.println(postBody);
 
@@ -831,7 +910,7 @@ void postConfigFile() {
             	}else{
             		Serial.println("done.");
             		serializeJson(doc, configFile);
-            		httpRestServer.send(201, "text/html", "Find and stored!");
+            		httpRestServer.send(201, "application/json", postBody);
             	}
             }
             else {
@@ -883,7 +962,7 @@ void inverterDayWithProblem() {
 
 	setCrossOrigin();
 
-	String scopeDirectory = F("states");
+	String scopeDirectory = F("alarms");
 
 	myFileSDCart = SD.open(scopeDirectory);
 
@@ -925,7 +1004,7 @@ void getInverterDayState() {
 
 	setCrossOrigin();
 
-	String scopeDirectory = F("states");
+	String scopeDirectory = F("alarms");
 
 	Serial.print(F("Read file: "));
 
@@ -949,7 +1028,7 @@ void getInverterLastState(){
 
 	setCrossOrigin();
 
-	String scopeDirectory = F("states");
+	String scopeDirectory = F("alarms");
 
 	Serial.print(F("Read file: "));
 
@@ -960,7 +1039,19 @@ void getInverterLastState(){
 	streamFileOnRest(filename);
 }
 
+void sendCrossOriginHeader(){
+	Serial.println(F("sendCORSHeader"));
+
+	httpRestServer.sendHeader("access-control-allow-credentials", "false");
+
+	setCrossOrigin();
+
+	httpRestServer.send(204);
+}
+
 void restServerRouting() {
+//	httpRestServer.header("Access-Control-Allow-Headers: Authorization, Content-Type");
+//
     httpRestServer.on("/", HTTP_GET, []() {
     	httpRestServer.send(200, "text/html",
             "Welcome to the Inverter Centraline REST Web Server");
@@ -969,6 +1060,7 @@ void restServerRouting() {
     httpRestServer.on("/productionTotal", HTTP_GET, getProductionTotal);
     httpRestServer.on("/monthly", HTTP_GET, getMontlyValue);
 
+    httpRestServer.on("/config", HTTP_OPTIONS, sendCrossOriginHeader);
     httpRestServer.on("/config", HTTP_POST, postConfigFile);
     httpRestServer.on("/config", HTTP_GET, getConfigFile);
 

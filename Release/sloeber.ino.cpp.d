@@ -244,6 +244,8 @@ sloeber.ino.cpp.o: ..\sloeber.ino.cpp \
  C:\eclipse\sloeber\arduinoPlugin\libraries\ArduinoJson\6.2.3-beta\src/ArduinoJson/MsgPack/MsgPackSerializer.hpp \
  C:\eclipse\sloeber\arduinoPlugin\libraries\WiFiManager\0.14.0/WiFiManager.h \
  C:\eclipse\sloeber\arduinoPlugin\packages\esp8266\hardware\esp8266\2.4.2\libraries\DNSServer\src/DNSServer.h \
+ D:\Projects\Arduino\sloeber-workspace-lib\EMailSender/EMailSender.h \
+ C:\eclipse\sloeber\arduinoPlugin\packages\esp8266\hardware\esp8266\2.4.2\libraries\ESP8266WiFi\src/WiFiClientSecure.h \
  ..\AuroraServerWebRest.ino
 
 C:\eclipse\sloeber\arduinoPlugin\packages\esp8266\hardware\esp8266\2.4.2\cores\esp8266/Arduino.h:
@@ -735,5 +737,9 @@ C:\eclipse\sloeber\arduinoPlugin\libraries\ArduinoJson\6.2.3-beta\src/ArduinoJso
 C:\eclipse\sloeber\arduinoPlugin\libraries\WiFiManager\0.14.0/WiFiManager.h:
 
 C:\eclipse\sloeber\arduinoPlugin\packages\esp8266\hardware\esp8266\2.4.2\libraries\DNSServer\src/DNSServer.h:
+
+D:\Projects\Arduino\sloeber-workspace-lib\EMailSender/EMailSender.h:
+
+C:\eclipse\sloeber\arduinoPlugin\packages\esp8266\hardware\esp8266\2.4.2\libraries\ESP8266WiFi\src/WiFiClientSecure.h:
 
 ..\AuroraServerWebRest.ino:

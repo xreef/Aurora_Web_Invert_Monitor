@@ -62,6 +62,11 @@
 			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.4.2/libraries/DNSServer</locationURI>
 		</link>
 		<link>
+			<name>libraries/EMailSender</name>
+			<type>2</type>
+			<location>D:/Projects/Arduino/sloeber-workspace-lib/EMailSender</location>
+		</link>
+		<link>
 			<name>libraries/ESP8266WebServer</name>
 			<type>2</type>
 			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.4.2/libraries/ESP8266WebServer</locationURI>

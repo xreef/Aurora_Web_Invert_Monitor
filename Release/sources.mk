@@ -42,6 +42,7 @@ core\core\umm_malloc \
 libraries\ArduinoThread \
 libraries\Aurora_communication_protocol \
 libraries\DNSServer\src \
+libraries\EMailSender \
 libraries\ESP8266WebServer\src \
 libraries\ESP8266WebServer\src\detail \
 libraries\ESP8266WiFi\src \

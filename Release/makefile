@@ -20,6 +20,7 @@ RM := del
 -include libraries\ESP8266WiFi\src\subdir.mk
 -include libraries\ESP8266WebServer\src\detail\subdir.mk
 -include libraries\ESP8266WebServer\src\subdir.mk
+-include libraries\EMailSender\subdir.mk
 -include libraries\DNSServer\src\subdir.mk
 -include libraries\Aurora_communication_protocol\subdir.mk
 -include libraries\ArduinoThread\subdir.mk
