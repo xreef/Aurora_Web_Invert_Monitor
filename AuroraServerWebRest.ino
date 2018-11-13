@@ -18,6 +18,22 @@
 
 #include <EMailSender.h>
 
+// Uncomment to enable printing out nice debug messages.
+#define AURORA_SERVER_DEBUG
+
+// Define where debug output will be printed.
+#define DEBUG_PRINTER Serial1
+
+// Setup debug printing macros.
+#ifdef AURORA_SERVER_DEBUG
+	#define DEBUG_PRINT(...) { DEBUG_PRINTER.print(__VA_ARGS__); }
+	#define DEBUG_PRINTLN(...) { DEBUG_PRINTER.println(__VA_ARGS__); }
+#else
+	#define DEBUG_PRINT(...) {}
+	#define DEBUG_PRINTLN(...) {}
+#endif
+
+
 char hostname[] = "InverterCentraline";
 
 // Interval get data
@@ -70,17 +86,19 @@ float setPrecision(float val, byte precision);
 EMailSender emailSend("smtp.mischianti@gmail.com", "cicciolo77.");
 
 void setup() {
-	// Inizilization of serial debug
-	Serial.begin(19200);
-	Serial.setTimeout(500);
-	// Wait to finisc inizialization
-	delay(600);
+	#ifdef AURORA_SERVER_DEBUG
+		// Inizilization of serial debug
+		Serial1.begin(19200);
+		Serial1.setTimeout(500);
+		// Wait to finish inizialization
+		delay(600);
+	#endif
 
-	Serial.print(F("Inizializing FS..."));
+	DEBUG_PRINT(F("Inizializing FS..."));
 	if (SPIFFS.begin()){
-		Serial.println(F("done."));
+		DEBUG_PRINTLN(F("done."));
 	}
-	Serial.println(F("fail."));
+	DEBUG_PRINTLN(F("fail."));
 
     //WiFiManager
     //Local intialization. Once its business is done, there is no need to keep it around
@@ -89,16 +107,16 @@ void setup() {
 	WiFi.hostname(hostname);
 	wifi_station_set_hostname(hostname);
 
-	Serial.print(F("Open config file..."));
+	DEBUG_PRINT(F("Open config file..."));
 	fs::File configFile = SPIFFS.open("/mc/config.txt", "r");
 	if (configFile) {
-	    Serial.println("done.");
+	    DEBUG_PRINTLN("done.");
 		DynamicJsonDocument doc;
 		DeserializationError error = deserializeJson(doc, configFile);
 		if (error) {
 			// if the file didn't open, print an error:
-			Serial.print(F("Error parsing JSON "));
-			Serial.println(error);
+			DEBUG_PRINT(F("Error parsing JSON "));
+			DEBUG_PRINTLN(error);
 		}
 
 		// close the file:
@@ -116,30 +134,30 @@ void setup() {
 			bool parseSuccess;
 			parseSuccess = _ip.fromString(address);
 			if (parseSuccess) {
-				Serial.println("Address correctly parsed!");
+				DEBUG_PRINTLN("Address correctly parsed!");
 			}
 
 		    IPAddress _gw;
 		    parseSuccess = _gw.fromString(gatway);
 		    if (parseSuccess) {
-				Serial.println("Gatway correctly parsed!");
+				DEBUG_PRINTLN("Gatway correctly parsed!");
 			}
 
 		    IPAddress _sn;
 		    parseSuccess = _sn.fromString(netMask);
 		    if (parseSuccess) {
-				Serial.println("Subnet correctly parsed!");
+				DEBUG_PRINTLN("Subnet correctly parsed!");
 			}
 		    //end-block2
 
 		    wifiManager.setSTAStaticIPConfig(_ip, _gw, _sn);
 
 		    timeClient.setTimeOffset(1*60*60);
-
-		    emailSend.setEMailLogin("smtp.mischianti@gmail.com");
+//
+//		    emailSend.setEMailLogin("smtp.mischianti@gmail.com");
 		}
 	}else{
-	    Serial.println("fail.");
+	    DEBUG_PRINTLN("fail.");
 	}
 
     //reset saved settings
@@ -158,27 +176,27 @@ void setup() {
 
 
     //if you get here you have connected to the WiFi
-    Serial.println(F("WIFIManager connected!"));
+    DEBUG_PRINTLN(F("WIFIManager connected!"));
 
-    Serial.print("IP --> ");
-    Serial.println(WiFi.localIP());
-    Serial.print("GW --> ");
-    Serial.println(WiFi.gatewayIP());
-    Serial.print("SM --> ");
-    Serial.println(WiFi.subnetMask());
+    DEBUG_PRINT("IP --> ");
+    DEBUG_PRINTLN(WiFi.localIP());
+    DEBUG_PRINT("GW --> ");
+    DEBUG_PRINTLN(WiFi.gatewayIP());
+    DEBUG_PRINT("SM --> ");
+    DEBUG_PRINTLN(WiFi.subnetMask());
 
 	// Start inverter serial
-	Serial.print(F("Initializing Inverter serial..."));
+	DEBUG_PRINT(F("Initializing Inverter serial..."));
 	inverter.begin();
-	Serial.println(F("initialization done."));
+	DEBUG_PRINTLN(F("initialization done."));
 
 	// Start inizialization of SD cart
-	Serial.print(F("Initializing SD card..."));
+	DEBUG_PRINT(F("Initializing SD card..."));
 	if (!SD.begin(CS_PIN)) {
-		Serial.println(F("initialization failed!"));
+		DEBUG_PRINTLN(F("initialization failed!"));
 		return;
 	}
-	Serial.println(F("Inizialization done."));
+	DEBUG_PRINTLN(F("Inizialization done."));
 
 	ManageStaticData.onRun(manageStaticDataCallback);
 	ManageStaticData.setInterval(STATIC_DATA_INTERVAL * 60 * 1000);
@@ -194,7 +212,7 @@ void setup() {
 	int timeToRetry = 10;
 	while ( WiFi.status() != WL_CONNECTED && timeToRetry>0 ) {
 	    delay ( 500 );
-	    Serial.print ( "." );
+	    DEBUG_PRINT ( "." );
 	    timeToRetry--;
 	}
 
@@ -206,7 +224,7 @@ void setup() {
 
 	restServerRouting();
 	httpRestServer.begin();
-    Serial.println(F("HTTP REST Server Started"));
+    DEBUG_PRINTLN(F("HTTP REST Server Started"));
 }
 
 void loop() {
@@ -235,14 +253,14 @@ void loop() {
 File myFileSDCart; // @suppress("Ambiguous problem")
 
 void leggiStatoInverterCallback() {
-	Serial.print(F("Thread call (LeggiStatoInverterCallback) --> "));
-	Serial.println(getEpochStringByParams(now()));
+	DEBUG_PRINT(F("Thread call (LeggiStatoInverterCallback) --> "));
+	DEBUG_PRINTLN(getEpochStringByParams(now()));
 
 	Aurora::DataState dataState = inverter.readState();
 	if (dataState.state.readState == true) {
-		Serial.println(F("done."));
+		DEBUG_PRINTLN(F("done."));
 
-		Serial.print(F("Create json..."));
+		DEBUG_PRINT(F("Create json..."));
 
 		String scopeDirectory = F("alarms");
 		if (!SD.exists(scopeDirectory)) {
@@ -268,7 +286,7 @@ void leggiStatoInverterCallback() {
 		rootObj["inverterStateParam"] = dataState.inverterState;
 		rootObj["inverterState"] = dataState.getInverterState();
 
-		Serial.println(F("done."));
+		DEBUG_PRINTLN(F("done."));
 
 		saveJSonToAFile(&doc, filename);
 
@@ -293,8 +311,8 @@ void leggiStatoInverterCallback() {
 			data = obj["data"];
 		}
 
-		bool inverterProblem = dataState.alarmState > 0
-				|| dataState.inverterState != 2;
+		bool inverterProblem = dataState.alarmState > 0 || dataState.inverterState != 2;
+
 		bool firstElement = data.size() == 0;
 
 		if (inverterProblem || !firstElement) {
@@ -309,14 +327,26 @@ void leggiStatoInverterCallback() {
 							|| lastData["c2sp"] != dataState.channel2State
 							|| lastData["isp"] != dataState.inverterState));
 
-			Serial.print(F("Inverter problem --> "));
-			Serial.println(inverterProblem);
+			byte ldState = lastData["isp"];
 
-			Serial.print(F("firstElement --> "));
-			Serial.println(firstElement);
+			DEBUG_PRINT(F("Last data state --> "));
+			DEBUG_PRINTLN(ldState);
 
-			Serial.print(F("Inverter problem --> "));
-			Serial.println(inverterProblem);
+			DEBUG_PRINT(F("Data state --> "));
+			DEBUG_PRINTLN(dataState.inverterState);
+
+			DEBUG_PRINT(F("Last data vs data state is different --> "));
+			DEBUG_PRINTLN(lastData["isp"] != dataState.inverterState);
+
+
+			DEBUG_PRINT(F("Inverter problem --> "));
+			DEBUG_PRINTLN(inverterProblem);
+
+			DEBUG_PRINT(F("firstElement --> "));
+			DEBUG_PRINTLN(firstElement);
+
+			DEBUG_PRINT(F("Variation From Previous --> "));
+			DEBUG_PRINTLN(variationFromPrevious);
 
 			if ((inverterProblem && firstElement)
 					|| (!firstElement && variationFromPrevious)) {
@@ -340,10 +370,10 @@ void leggiStatoInverterCallback() {
 				objArrayData["isp"] = dataState.inverterState;
 				//			objArrayData["is"] = dataState.getInverterState();
 
-				Serial.println(F("Store alarms --> "));
+				DEBUG_PRINTLN(F("Store alarms --> "));
 				//				serializeJson(doc, Serial);
-				Serial.print(docAS.memoryUsage());
-				Serial.println();
+				DEBUG_PRINT(docAS.memoryUsage());
+				DEBUG_PRINTLN();
 
 				if (!SD.exists(scopeDirectory + '/' + dayDirectory)) {
 					SD.mkdir(scopeDirectory + '/' + dayDirectory);
@@ -351,19 +381,169 @@ void leggiStatoInverterCallback() {
 
 				saveJSonToAFile(&docAS, filenameAL);
 
-			    EMailSender::EMailMessage message;
-			    message.subject = "Problema all'Inverter ";
-			    message.message = "E' stato rilevato un problema all'inverter:<br>Alarm: "+dataState.getAlarmState()+
-			    		"<br>CH1: "+dataState.getDcDcChannel1State() + "<br>CH2: "+dataState.getDcDcChannel2State()+
-						"<br>Stato: "+dataState.getInverterState();
+				DEBUG_PRINT(F("Open config file..."));
+				fs::File configFile = SPIFFS.open("/mc/config.txt", "r");
+				if (configFile) {
+				    DEBUG_PRINTLN("done.");
+					DynamicJsonDocument doc;
+					DeserializationError error = deserializeJson(doc, configFile);
+					if (error) {
+						// if the file didn't open, print an error:
+						DEBUG_PRINT(F("Error parsing JSON "));
+						DEBUG_PRINTLN(error);
+					}
 
-			    EMailSender::Response resp = emailSend.send("renzo.mischianti@gmail.com", message);
+					// close the file:
+					configFile.close();
 
-			    Serial.println("Sending status: ");
+					JsonObject rootObj = doc.as<JsonObject>();
 
-			    Serial.println(resp.status);
-			    Serial.println(resp.code);
-			    Serial.println(resp.desc);
+				    DEBUG_PRINT(F("After read config check serverSMTP and emailNotification "));
+				    DEBUG_PRINTLN(rootObj.containsKey("serverSMTP") && rootObj.containsKey("emailNotification"));
+
+					if (rootObj.containsKey("serverSMTP") && rootObj.containsKey("emailNotification")){
+//						JsonObject serverConfig = rootObj["server"];
+						JsonObject serverSMTP = rootObj["serverSMTP"];
+						JsonObject emailNotification = rootObj["emailNotification"];
+
+						bool isNotificationEnabled = (emailNotification.containsKey("isNotificationEnabled"))?emailNotification["isNotificationEnabled"]:false;
+
+					    DEBUG_PRINT(F("isNotificationEnabled "));
+					    DEBUG_PRINTLN(isNotificationEnabled);
+
+						if (isNotificationEnabled){
+							const char* serverSMTPAddr = serverSMTP["server"];
+							emailSend.setSMTPServer(serverSMTPAddr);
+							uint16_t portSMTP = serverSMTP["port"];
+							emailSend.setSMTPPort(portSMTP);
+							const char* loginSMTP = serverSMTP["login"];
+							emailSend.setEMailLogin(loginSMTP);
+							const char* passwordSMTP = serverSMTP["password"];
+							emailSend.setEMailPassword(passwordSMTP);
+							const char* fromSMTP = serverSMTP["from"];
+							emailSend.setEMailFrom(fromSMTP);
+
+							DEBUG_PRINT("server ");
+							DEBUG_PRINTLN(serverSMTPAddr);
+							DEBUG_PRINT("port ");
+							DEBUG_PRINTLN(portSMTP);
+							DEBUG_PRINT("login ");
+							DEBUG_PRINTLN(loginSMTP);
+							DEBUG_PRINT("password ");
+							DEBUG_PRINTLN(passwordSMTP);
+							DEBUG_PRINT("from ");
+							DEBUG_PRINTLN(fromSMTP);
+
+							EMailSender::EMailMessage message;
+							const String sub = emailNotification["subject"];
+							message.subject = sub;
+
+							JsonArray emailList = emailNotification["emailList"];
+
+						    DEBUG_PRINT(F("Email list "));
+
+							for (uint8_t i=0; i<emailList.size(); i++){
+								JsonObject emailElem = emailList[i];
+
+								byte asp = lastData["asp"];
+								byte c1sp = lastData["c1sp"];
+								byte c2sp = lastData["c2sp"];
+								byte isp = lastData["isp"];
+
+								const String alarm = emailElem["alarm"];
+								const String ch1 = emailElem["ch1"];
+								const String ch2 = emailElem["ch2"];
+								const String state = emailElem["state"];
+
+							    DEBUG_PRINT(F("State value "));
+							    DEBUG_PRINTLN(state);
+
+							    DEBUG_PRINT(F("State value on_problem comparison "));
+							    DEBUG_PRINTLN(state=="on_problem");
+
+							    DEBUG_PRINT(F("Alarm value "));
+							    DEBUG_PRINTLN(alarm);
+
+							    DEBUG_PRINT(F("Alarm all comparison "));
+							    DEBUG_PRINTLN(alarm=="all");
+
+								bool allNotification = (
+										(alarm=="all" && asp != dataState.alarmState)
+										||
+										(ch1=="all" && c1sp != dataState.channel1State)
+										||
+										(ch2=="all" && c2sp != dataState.channel2State)
+										||
+										(state=="all" && isp != dataState.inverterState)
+								);
+
+								bool onProblem = (
+										(alarm=="on_problem" && dataState.alarmState > 0)
+										||
+										(ch1=="on_problem" && dataState.channel1State != 2)
+										||
+										(ch2=="on_problem" && dataState.channel1State != 2)
+										||
+										(state=="on_problem" && dataState.inverterState != 2)
+								);
+
+							    DEBUG_PRINT(F("Check allNotification "));
+							    DEBUG_PRINTLN(allNotification);
+
+							    DEBUG_PRINT(F("Check onProblem "));
+							    DEBUG_PRINTLN(onProblem);
+
+
+								if (
+										allNotification
+										||
+										onProblem
+								){
+									const String mp = emailNotification["messageProblem"];
+									const String mnp = emailNotification["messageNoProblem"];
+									message.message = ((inverterProblem)?mp:mnp)+
+													"<br>Alarm: "+dataState.getAlarmState()+
+													"<br>CH1: "+dataState.getDcDcChannel1State() +
+													"<br>CH2: "+dataState.getDcDcChannel2State()+
+													"<br>Stato: "+dataState.getInverterState();
+								}
+
+								EMailSender::Response resp = emailSend.send(emailElem["email"], message);
+
+								DEBUG_PRINTLN("Sending status: ");
+								const String em = emailElem["email"];
+								DEBUG_PRINTLN(em);
+								DEBUG_PRINTLN(resp.status);
+								DEBUG_PRINTLN(resp.code);
+								DEBUG_PRINTLN(resp.desc);
+
+							}
+						}
+					}
+				}else{
+				    DEBUG_PRINTLN("fail.");
+				}
+
+
+
+
+
+
+
+
+//			    EMailSender::EMailMessage message;
+//			    message.subject = "Problema all'Inverter ";
+//			    message.message = "E' stato rilevato un problema all'inverter:<br>Alarm: "+dataState.getAlarmState()+
+//			    		"<br>CH1: "+dataState.getDcDcChannel1State() + "<br>CH2: "+dataState.getDcDcChannel2State()+
+//						"<br>Stato: "+dataState.getInverterState();
+//
+//			    EMailSender::Response resp = emailSend.send("renzo.mischianti@gmail.com", message);
+//
+//			    DEBUG_PRINTLN("Sending status: ");
+//
+//			    DEBUG_PRINTLN(resp.status);
+//			    DEBUG_PRINTLN(resp.code);
+//			    DEBUG_PRINTLN(resp.desc);
 
 			}
 
@@ -374,31 +554,31 @@ void leggiStatoInverterCallback() {
 }
 
 void manageStaticDataCallback () {
-	Serial.print(F("Thread call (manageStaticDataCallback) --> "));
-	Serial.println(getEpochStringByParams(now()));
+	DEBUG_PRINT(F("Thread call (manageStaticDataCallback) --> "));
+	DEBUG_PRINTLN(getEpochStringByParams(now()));
 
-	Serial.print(F("Data version read... "));
+	DEBUG_PRINT(F("Data version read... "));
 	Aurora::DataVersion dataVersion = inverter.readVersion();
 
-	Serial.print(F("Firmware release read... "));
+	DEBUG_PRINT(F("Firmware release read... "));
 	Aurora::DataFirmwareRelease firmwareRelease = inverter.readFirmwareRelease();
 
-	Serial.print(F("System SN read... "));
+	DEBUG_PRINT(F("System SN read... "));
 	Aurora::DataSystemSerialNumber systemSN = inverter.readSystemSerialNumber();
 
-	Serial.print(F("Manufactoru Week Year read... "));
+	DEBUG_PRINT(F("Manufactoru Week Year read... "));
 	Aurora::DataManufacturingWeekYear manufactoryWeekYear = inverter.readManufacturingWeekYear();
 
-	Serial.print(F("systemPN read... "));
+	DEBUG_PRINT(F("systemPN read... "));
 	Aurora::DataSystemPN systemPN = inverter.readSystemPN();
 
-	Serial.print(F("configStatus read... "));
+	DEBUG_PRINT(F("configStatus read... "));
 	Aurora::DataConfigStatus configStatus = inverter.readConfig();
 
 	if (dataVersion.state.readState == true){
-    	Serial.println(F("done."));
+    	DEBUG_PRINTLN(F("done."));
 
-    	Serial.print(F("Create json..."));
+    	DEBUG_PRINT(F("Create json..."));
 
 		String scopeDirectory = F("static");
 		if (!SD.exists(scopeDirectory)){
@@ -438,7 +618,7 @@ void manageStaticDataCallback () {
 		cs["code"] = configStatus.configStatus;
 		cs["desc"] = configStatus.getConfigStatus();
 
-		Serial.println(F("done."));
+		DEBUG_PRINTLN(F("done."));
 
 		saveJSonToAFile(&doc, filename);
 	}
@@ -446,8 +626,8 @@ void manageStaticDataCallback () {
 }
 
 void leggiProduzioneCallback() {
-	Serial.print(F("Thread call (leggiProduzioneCallback) --> "));
-	Serial.println(getEpochStringByParams(now()));
+	DEBUG_PRINT(F("Thread call (leggiProduzioneCallback) --> "));
+	DEBUG_PRINTLN(getEpochStringByParams(now()));
 
 	tm nowDt = getDateTimeByParams(now());
 
@@ -455,8 +635,8 @@ void leggiProduzioneCallback() {
 	if (nowDt.tm_min % CUMULATIVE_INTERVAL == 0) {
 		Aurora::DataCumulatedEnergy dce = inverter.readCumulatedEnergy(
 		CUMULATED_DAILY_ENERGY);
-		Serial.print(F("Read state --> "));
-		Serial.println(dce.state.readState);
+		DEBUG_PRINT(F("Read state --> "));
+		DEBUG_PRINTLN(dce.state.readState);
 
 		if (dce.state.readState == 1) {
 			unsigned long energy = dce.energy;
@@ -493,10 +673,10 @@ void leggiProduzioneCallback() {
 				dayData["pow"] = energy;
 				dayData["powPeak"] = setPrecision(powerPeak, 1);
 
-				Serial.print(F("Store cumulated energy --> "));
+				DEBUG_PRINT(F("Store cumulated energy --> "));
 //				serializeJson(doc, Serial);
-				Serial.print(doc.memoryUsage());
-				Serial.println();
+				DEBUG_PRINT(doc.memoryUsage());
+				DEBUG_PRINTLN();
 
 				saveJSonToAFile(&doc, filename);
 			}
@@ -507,29 +687,29 @@ void leggiProduzioneCallback() {
 	// Save cumulative data
 	if (nowDt.tm_min % CUMULATIVE_TOTAL_INTERVAL == 0) {
 
-		Serial.println("Get all totals.");
+		DEBUG_PRINTLN("Get all totals.");
 		Aurora::DataCumulatedEnergy dce = inverter.readCumulatedEnergy(
 		CUMULATED_TOTAL_ENERGY_LIFETIME);
 		unsigned long energyLifetime = dce.energy;
-		Serial.println(energyLifetime);
+		DEBUG_PRINTLN(energyLifetime);
 
 		if (dce.state.readState == 1) {
 
 			dce = inverter.readCumulatedEnergy(CUMULATED_YEARLY_ENERGY);
 			unsigned long energyYearly = dce.energy;
-			Serial.println(energyYearly);
+			DEBUG_PRINTLN(energyYearly);
 
 			dce = inverter.readCumulatedEnergy(CUMULATED_MONTHLY_ENERGY);
 			unsigned long energyMonthly = dce.energy;
-			Serial.println(energyMonthly);
+			DEBUG_PRINTLN(energyMonthly);
 
 			dce = inverter.readCumulatedEnergy(CUMULATED_WEEKLY_ENERGY);
 			unsigned long energyWeekly = dce.energy;
-			Serial.println(energyWeekly);
+			DEBUG_PRINTLN(energyWeekly);
 
 			dce = inverter.readCumulatedEnergy(CUMULATED_DAILY_ENERGY);
 			unsigned long energyDaily = dce.energy;
-			Serial.println(energyDaily);
+			DEBUG_PRINTLN(energyDaily);
 
 			String scopeDirectory = F("states");
 			if (!SD.exists(scopeDirectory)) {
@@ -654,10 +834,10 @@ void leggiProduzioneCallback() {
 				obj["M"] = getEpochStringByParams(now(), (char*) "%Y%m");
 				obj["Y"] = getEpochStringByParams(now(), (char*) "%Y");
 
-				Serial.print(F("Store energyLifetime energy --> "));
+				DEBUG_PRINT(F("Store energyLifetime energy --> "));
 				//				serializeJson(doc, Serial);
-				Serial.print(doc.memoryUsage());
-				Serial.println();
+				DEBUG_PRINT(doc.memoryUsage());
+				DEBUG_PRINTLN();
 
 				saveJSonToAFile(&doc, filename);
 			}
@@ -685,8 +865,8 @@ void leggiProduzioneCallback() {
 			}
 
 			Aurora::DataDSP dsp = inverter.readDSP(read);
-			Serial.print(F("Read state --> "));
-			Serial.println(dsp.state.readState);
+			DEBUG_PRINT(F("Read state --> "));
+			DEBUG_PRINTLN(dsp.state.readState);
 			if (dsp.state.readState == 1) {
 				float val = dsp.value;
 
@@ -721,9 +901,9 @@ void leggiProduzioneCallback() {
 					objArrayData["h"] = getEpochStringByParams(now(),
 							(char*) "%H%M");
 					objArrayData["val"] = setPrecision(val, 1);
-					Serial.println(F("Store production --> "));
-					Serial.print(doc.memoryUsage());
-					Serial.println();
+					DEBUG_PRINTLN(F("Store production --> "));
+					DEBUG_PRINT(doc.memoryUsage());
+					DEBUG_PRINTLN();
 
 					saveJSonToAFile(&doc, filenameDir);
 				}
@@ -744,8 +924,8 @@ JsonObject getJSonFromFile(DynamicJsonDocument *doc, String filename) {
 		DeserializationError error = deserializeJson(*doc, myFileSDCart);
 		if (error) {
 			// if the file didn't open, print an error:
-			Serial.print(F("Error parsing JSON "));
-			Serial.println(error);
+			DEBUG_PRINT(F("Error parsing JSON "));
+			DEBUG_PRINTLN(error);
 		}
 
 		// close the file:
@@ -754,10 +934,10 @@ JsonObject getJSonFromFile(DynamicJsonDocument *doc, String filename) {
 		return doc->as<JsonObject>();
 	} else {
 		// if the file didn't open, print an error:
-		Serial.print(F("Error opening (or file not exists) "));
-		Serial.println(filename);
+		DEBUG_PRINT(F("Error opening (or file not exists) "));
+		DEBUG_PRINTLN(filename);
 
-		Serial.println(F("Empty json created"));
+		DEBUG_PRINTLN(F("Empty json created"));
 		return doc->to<JsonObject>();
 	}
 
@@ -768,26 +948,26 @@ bool saveJSonToAFile(DynamicJsonDocument *doc, String filename) {
 
 	// open the file. note that only one file can be open at a time,
 	// so you have to close this one before opening another.
-	Serial.println(F("Open file in write mode"));
+	DEBUG_PRINTLN(F("Open file in write mode"));
 	myFileSDCart = SD.open(filename, FILE_WRITE);
 	if (myFileSDCart) {
-		Serial.print(F("Filename --> "));
-		Serial.println(filename);
+		DEBUG_PRINT(F("Filename --> "));
+		DEBUG_PRINTLN(filename);
 
-		Serial.print(F("Start write..."));
+		DEBUG_PRINT(F("Start write..."));
 
 		serializeJson(*doc, myFileSDCart);
 
-		Serial.print(F("..."));
+		DEBUG_PRINT(F("..."));
 		// close the file:
 		myFileSDCart.close();
-		Serial.println(F("done."));
+		DEBUG_PRINTLN(F("done."));
 
 		return true;
 	} else {
 		// if the file didn't open, print an error:
-		Serial.print(F("Error opening "));
-		Serial.println(filename);
+		DEBUG_PRINT(F("Error opening "));
+		DEBUG_PRINTLN(filename);
 
 		return false;
 	}
@@ -805,89 +985,89 @@ void streamFileOnRest(String filename){
 		myFileSDCart = SD.open(filename);
 		if (myFileSDCart){
 			if (myFileSDCart.available()){
-				Serial.print(F("Stream file..."));
+				DEBUG_PRINT(F("Stream file..."));
 				httpRestServer.streamFile(myFileSDCart, "application/json");
-				Serial.println(F("done."));
+				DEBUG_PRINTLN(F("done."));
 			}else{
-				Serial.println(F("Data not available!"));
+				DEBUG_PRINTLN(F("Data not available!"));
 				httpRestServer.send(204, "text/html", "Data not available!");
 			}
 			myFileSDCart.close();
 		}else{
-			Serial.println(F("File not found!"));
+			DEBUG_PRINTLN(F("File not found!"));
 			httpRestServer.send(204, "text/html", "No content found!");
 		}
 	}else{
-		Serial.println(F("File not found!"));
+		DEBUG_PRINTLN(F("File not found!"));
 		httpRestServer.send(204, "text/html", "File not exist!");
 	}
 }
 
 void getProduction(){
-	Serial.println(F("getProduction"));
+	DEBUG_PRINTLN(F("getProduction"));
 
 	setCrossOrigin();
 
 	if (httpRestServer.arg("day")== "" || httpRestServer.arg("type")== "" ){     //Parameter not found
 		httpRestServer.send(400, "text/html", "Missing required parameter!");
-		Serial.println(F("No parameter"));
+		DEBUG_PRINTLN(F("No parameter"));
 	}else{     //Parameter found
-		Serial.print(F("Read file: "));
+		DEBUG_PRINT(F("Read file: "));
 		String filename = "product/"+httpRestServer.arg("day")+"/"+httpRestServer.arg("type")+".jso";
 
-		Serial.println(filename);
+		DEBUG_PRINTLN(filename);
 
 		streamFileOnRest(filename);
 	}
 }
 
 void getProductionTotal(){
-	Serial.println(F("getProduction"));
+	DEBUG_PRINTLN(F("getProduction"));
 
 	setCrossOrigin();
 
 
-	Serial.print(F("Read file: "));
+	DEBUG_PRINT(F("Read file: "));
 	String scopeDirectory = F("states");
 	String filename =  scopeDirectory+F("/lastStat.jso");
 
 
-	Serial.println(filename);
+	DEBUG_PRINTLN(filename);
 
 	streamFileOnRest(filename);
 
 }
 
 void getMontlyValue(){
-	Serial.println(F("getMontlyValue"));
+	DEBUG_PRINTLN(F("getMontlyValue"));
 
 	setCrossOrigin();
 	String scopeDirectory = F("monthly");
 
 	if (httpRestServer.arg("month")== ""){     //Parameter not found
 		httpRestServer.send(400, "text/html", "Missing required parameter!");
-		Serial.println(F("No parameter"));
+		DEBUG_PRINTLN(F("No parameter"));
 	}else{     //Parameter found
-		Serial.print(F("Read file: "));
+		DEBUG_PRINT(F("Read file: "));
 		String filename = scopeDirectory+'/'+httpRestServer.arg("month")+".jso";
 		streamFileOnRest(filename);
 	}
 }
 
 void postConfigFile() {
-	Serial.println(F("postConfigFile"));
+	DEBUG_PRINTLN(F("postConfigFile"));
 
 	setCrossOrigin();
 
     String postBody = httpRestServer.arg("plain");
-    Serial.println(postBody);
+    DEBUG_PRINTLN(postBody);
 
 	DynamicJsonDocument doc;
 	DeserializationError error = deserializeJson(doc, postBody);
 	if (error) {
 		// if the file didn't open, print an error:
-		Serial.print(F("Error parsing JSON "));
-		Serial.println(error);
+		DEBUG_PRINT(F("Error parsing JSON "));
+		DEBUG_PRINTLN(error);
 
 		String msg = error.c_str();
 
@@ -896,19 +1076,19 @@ void postConfigFile() {
 	}else{
 		JsonObject postObj = doc.as<JsonObject>();
 
-		Serial.print(F("HTTP Method: "));
-		Serial.println(httpRestServer.method());
+		DEBUG_PRINT(F("HTTP Method: "));
+		DEBUG_PRINTLN(httpRestServer.method());
 
         if (httpRestServer.method() == HTTP_POST) {
             if ((postObj.containsKey("server"))) {
 
-            	Serial.print(F("Open config file..."));
+            	DEBUG_PRINT(F("Open config file..."));
             	fs::File configFile = SPIFFS.open("/mc/config.txt", "w");
             	if (!configFile) {
-            	    Serial.println("fail.");
+            	    DEBUG_PRINTLN("fail.");
             	    httpRestServer.send(304, "text/html", "Fail to store data, can't open file!");
             	}else{
-            		Serial.println("done.");
+            		DEBUG_PRINTLN("done.");
             		serializeJson(doc, configFile);
             		httpRestServer.send(201, "application/json", postBody);
             	}
@@ -921,44 +1101,44 @@ void postConfigFile() {
 }
 
 void getConfigFile(){
-	Serial.println(F("getConfigFile"));
+	DEBUG_PRINTLN(F("getConfigFile"));
 
 	setCrossOrigin();
 
-	Serial.print(F("Read file: "));
+	DEBUG_PRINT(F("Read file: "));
 	if (SPIFFS.exists("/mc/config.txt")){
     	fs::File configFile = SPIFFS.open("/mc/config.txt", "r");
 		if (configFile){
 			if (configFile.available()){
-				Serial.print(F("Stream file..."));
+				DEBUG_PRINT(F("Stream file..."));
 				httpRestServer.streamFile(configFile, "application/json");
-				Serial.println(F("done."));
+				DEBUG_PRINTLN(F("done."));
 			}else{
-				Serial.println(F("File not found!"));
+				DEBUG_PRINTLN(F("File not found!"));
 				httpRestServer.send(204, "text/html", "No content found!");
 			}
 			configFile.close();
 		}
 	}else{
-		Serial.println(F("File not found!"));
+		DEBUG_PRINTLN(F("File not found!"));
 		httpRestServer.send(204, "text/html", "No content found!");
 	}
 }
 
 void getInverterInfo(){
-	Serial.println(F("getInverterInfo"));
+	DEBUG_PRINTLN(F("getInverterInfo"));
 
 	setCrossOrigin();
 
 	String scopeDirectory = F("static");
 
-	Serial.print(F("Read file: "));
+	DEBUG_PRINT(F("Read file: "));
 	String filename = scopeDirectory+"/invinfo.jso";
 	streamFileOnRest(filename);
 }
 
 void inverterDayWithProblem() {
-	Serial.println(F("inverterDayWithProblem"));
+	DEBUG_PRINTLN(F("inverterDayWithProblem"));
 
 	setCrossOrigin();
 
@@ -978,7 +1158,7 @@ void inverterDayWithProblem() {
 			// no more files
 			break;
 		}
-		Serial.println(entry.name());
+		DEBUG_PRINTLN(entry.name());
 		if (entry.isDirectory()) {
 			data.add(entry.name());
 		}
@@ -988,49 +1168,49 @@ void inverterDayWithProblem() {
 	myFileSDCart.close();
 
 	if (data.size() > 0) {
-		Serial.print(F("Stream file..."));
+		DEBUG_PRINT(F("Stream file..."));
 		String buf;
 		serializeJson(rootObj, buf);
 		httpRestServer.send(200, "application/json", buf);
-		Serial.println(F("done."));
+		DEBUG_PRINTLN(F("done."));
 	} else {
-		Serial.println(F("No content found!"));
+		DEBUG_PRINTLN(F("No content found!"));
 		httpRestServer.send(204, "text/html", "No content found!");
 	}
 }
 
 void getInverterDayState() {
-	Serial.println(F("getInverterDayState"));
+	DEBUG_PRINTLN(F("getInverterDayState"));
 
 	setCrossOrigin();
 
 	String scopeDirectory = F("alarms");
 
-	Serial.print(F("Read file: "));
+	DEBUG_PRINT(F("Read file: "));
 
 	if (httpRestServer.arg("day") == "") {     //Parameter not found
 		httpRestServer.send(400, "text/html", "Missing required parameter!");
-		Serial.println(F("No parameter"));
+		DEBUG_PRINTLN(F("No parameter"));
 	} else {     //Parameter found
 
 		String filename;
 		String parameter = httpRestServer.arg("day");
 		filename = scopeDirectory + '/' + parameter + "/alarms.jso";
 
-		Serial.println(filename);
+		DEBUG_PRINTLN(filename);
 
 		streamFileOnRest(filename);
 	}
 }
 
 void getInverterLastState(){
-	Serial.println(F("getInverterLastState"));
+	DEBUG_PRINTLN(F("getInverterLastState"));
 
 	setCrossOrigin();
 
 	String scopeDirectory = F("alarms");
 
-	Serial.print(F("Read file: "));
+	DEBUG_PRINT(F("Read file: "));
 
 	String filename;
 	String parameter = httpRestServer.arg("day");
@@ -1040,7 +1220,7 @@ void getInverterLastState(){
 }
 
 void sendCrossOriginHeader(){
-	Serial.println(F("sendCORSHeader"));
+	DEBUG_PRINTLN(F("sendCORSHeader"));
 
 	httpRestServer.sendHeader("access-control-allow-credentials", "false");
 
@@ -1071,37 +1251,37 @@ void restServerRouting() {
 }
 
 void updateLocalTimeWithNTPCallback(){
-	Serial.print(F("Thread call (updateLocalTimeWithNTPCallback) --> "));
-	Serial.println(getEpochStringByParams(now()));
+	DEBUG_PRINT(F("Thread call (updateLocalTimeWithNTPCallback) --> "));
+	DEBUG_PRINTLN(getEpochStringByParams(now()));
 
 	if (!fixedTime){
-		Serial.println(F("Update NTP Time."));
+		DEBUG_PRINTLN(F("Update NTP Time."));
 		if (timeClient.forceUpdate()){
 			unsigned long epoch = timeClient.getEpochTime();
-			Serial.println(epoch);
+			DEBUG_PRINTLN(epoch);
 
-			Serial.println(F("NTP Time retrieved."));
+			DEBUG_PRINTLN(F("NTP Time retrieved."));
 			adjustTime(epoch);
 			fixedTime = true;
 		}else{
-			Serial.println(F("NTP Time not retrieved."));
+			DEBUG_PRINTLN(F("NTP Time not retrieved."));
 
-			Serial.println(F("Get Inverter Time."));
+			DEBUG_PRINTLN(F("Get Inverter Time."));
 			// Get DateTime from inverter
 			Aurora::DataTimeDate timeDate = inverter.readTimeDate();
 
 			if (timeDate.state.readState){
-				Serial.println(F("Inverter Time retrieved."));
+				DEBUG_PRINTLN(F("Inverter Time retrieved."));
 				// Set correct time in Arduino Time librery
 				adjustTime(timeDate.epochTime);
 				fixedTime = true;
 			}else{
-				Serial.println(F("Inverter Time not retrieved."));
-				Serial.println(F("DANGER, SYSTEM INCONCISTENCY"));
+				DEBUG_PRINTLN(F("Inverter Time not retrieved."));
+				DEBUG_PRINTLN(F("DANGER, SYSTEM INCONCISTENCY"));
 			}
 		}
 
-		Serial.println(getEpochStringByParams(now()));
+		DEBUG_PRINTLN(getEpochStringByParams(now()));
 	}
 }
 
