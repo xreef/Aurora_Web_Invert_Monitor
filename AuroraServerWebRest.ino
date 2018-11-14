@@ -506,16 +506,17 @@ void leggiStatoInverterCallback() {
 													"<br>CH1: "+dataState.getDcDcChannel1State() +
 													"<br>CH2: "+dataState.getDcDcChannel2State()+
 													"<br>Stato: "+dataState.getInverterState();
+
+									EMailSender::Response resp = emailSend.send(emailElem["email"], message);
+
+									DEBUG_PRINTLN("Sending status: ");
+									const String em = emailElem["email"];
+									DEBUG_PRINTLN(em);
+									DEBUG_PRINTLN(resp.status);
+									DEBUG_PRINTLN(resp.code);
+									DEBUG_PRINTLN(resp.desc);
 								}
 
-								EMailSender::Response resp = emailSend.send(emailElem["email"], message);
-
-								DEBUG_PRINTLN("Sending status: ");
-								const String em = emailElem["email"];
-								DEBUG_PRINTLN(em);
-								DEBUG_PRINTLN(resp.status);
-								DEBUG_PRINTLN(resp.code);
-								DEBUG_PRINTLN(resp.desc);
 
 							}
 						}
@@ -523,27 +524,6 @@ void leggiStatoInverterCallback() {
 				}else{
 				    DEBUG_PRINTLN("fail.");
 				}
-
-
-
-
-
-
-
-
-//			    EMailSender::EMailMessage message;
-//			    message.subject = "Problema all'Inverter ";
-//			    message.message = "E' stato rilevato un problema all'inverter:<br>Alarm: "+dataState.getAlarmState()+
-//			    		"<br>CH1: "+dataState.getDcDcChannel1State() + "<br>CH2: "+dataState.getDcDcChannel2State()+
-//						"<br>Stato: "+dataState.getInverterState();
-//
-//			    EMailSender::Response resp = emailSend.send("renzo.mischianti@gmail.com", message);
-//
-//			    DEBUG_PRINTLN("Sending status: ");
-//
-//			    DEBUG_PRINTLN(resp.status);
-//			    DEBUG_PRINTLN(resp.code);
-//			    DEBUG_PRINTLN(resp.desc);
 
 			}
 
