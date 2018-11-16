@@ -695,7 +695,7 @@ void leggiProduzioneCallback() {
 			if (!SD.exists(scopeDirectory)) {
 				SD.mkdir(scopeDirectory);
 			}
-			if (energyLifetime) {
+			if (dce.state.readState == 1 && energyLifetime) {
 				String filename = scopeDirectory + F("/lastStat.jso");
 				String tagName = getEpochStringByParams(now(), (char*) "%d");
 
