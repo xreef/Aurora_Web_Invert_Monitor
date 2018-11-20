@@ -142,6 +142,19 @@ void setup() {
 
 		}else{
 			JsonObject rootObj = doc.as<JsonObject>();
+			JsonObject preferences = rootObj["preferences"];
+			bool isGTM = preferences.containsKey("GTM");
+			if (isGTM){
+				JsonObject GTM = preferences["GTM"];
+				bool isValue = GTM.containsKey("value");
+				if (isValue){
+					int value = GTM["value"];
+
+					timeClient.setTimeOffset(value*60*60);
+					timeOffset = value*60*60;
+				}
+			}
+
 			JsonObject serverConfig = rootObj["server"];
 			bool isStatic = serverConfig["isStatic"];
 			if (isStatic==true){
@@ -199,9 +212,6 @@ void setup() {
 					strcpy(hostname, _hostname);
 				}
 				// IPAddress(85, 37, 17, 12), IPAddress(8, 8, 8, 8)
-
-				timeClient.setTimeOffset(1*60*60);
-				timeOffset = 1*60*60;
 	//
 	//		    emailSend.setEMailLogin("smtp.mischianti@gmail.com");
 			}
