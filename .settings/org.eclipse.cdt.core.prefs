@@ -25,7 +25,7 @@ environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.DEBUG_L
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.DEBUG_LEVEL/value=
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.DEBUG_PORT/delimiter=;
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.DEBUG_PORT/operation=replace
-environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.DEBUG_PORT/value=
+environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.DEBUG_PORT/value=-DDEBUG_ESP_PORT\=Serial1
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.EXTRA_FLAGS/delimiter=;
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.EXTRA_FLAGS/operation=replace
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.EXTRA_FLAGS/value=-DESP8266
@@ -34,7 +34,7 @@ environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.FLASH_F
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.FLASH_FREQ/value=40
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.FLASH_LD/delimiter=;
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.FLASH_LD/operation=replace
-environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.FLASH_LD/value=eagle.flash.4m1m.ld
+environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.FLASH_LD/value=eagle.flash.4m.ld
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.FLASH_MODE/delimiter=;
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.FLASH_MODE/operation=replace
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.FLASH_MODE/value=dio
@@ -88,7 +88,7 @@ environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.SPIFFS_
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.SPIFFS_PAGESIZE/value=256
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.SPIFFS_START/delimiter=;
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.SPIFFS_START/operation=replace
-environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.SPIFFS_START/value=0x300000
+environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.SPIFFS_START/value=0x100000
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.SYSTEM.PATH/delimiter=;
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.SYSTEM.PATH/operation=replace
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.BUILD.SYSTEM.PATH/value=${A.RUNTIME.PLATFORM.PATH}/system
@@ -493,7 +493,7 @@ environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.MAKE_LOC
 environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.MAKE_LOCATION/value=C\:\\eclipse\\sloeber\\arduinoPlugin\\tools\\make\\
 environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.MENU/delimiter=;
 environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.MENU/operation=replace
-environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.MENU/value=cpu\=atmega2560\nCpuFrequency\=80\nDebug\=Disabled\nDebugLevel\=None____\nFlashErase\=none\nFlashSize\=4M1M\nLwIPVariant\=v2mss536\nUploadSpeed\=921600\nVTable\=flash
+environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.MENU/value=cpu\=atmega2560\nCpuFrequency\=80\nDebug\=Serial1\nDebugLevel\=None____\nFlashErase\=none\nFlashSize\=4M3M\nLwIPVariant\=v2mss536\nUploadSpeed\=921600\nVTable\=flash
 environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.OBJCOPY/delimiter=;
 environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.OBJCOPY/operation=replace
 environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.OBJCOPY/value=${A.RECIPE.OBJCOPY.HEX.PATTERN}

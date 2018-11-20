@@ -8,6 +8,7 @@
 #include <TimeLib.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
+#include <ESP8266mDNS.h>        // Include the mDNS library
 
 #include <ESP8266WebServer.h>
 #include <ArduinoJson.h>
@@ -17,6 +18,13 @@
 #include <ArduinoJson.h>
 
 #include <EMailSender.h>
+
+// Uncomment to enable server ftp.
+//#define SERVER_FTP
+
+#ifdef SERVER_FTP
+#include <FtpServer.h>
+#endif
 
 // Uncomment to enable printing out nice debug messages.
 #define AURORA_SERVER_DEBUG
@@ -85,6 +93,12 @@ float setPrecision(float val, byte precision);
 
 EMailSender emailSend("smtp.mischianti@gmail.com", "cicciolo77.");
 
+#ifdef SERVER_FTP
+FtpServer ftpSrv;
+#endif
+
+int timeOffset = 0;
+
 void setup() {
 	#ifdef AURORA_SERVER_DEBUG
 		// Inizilization of serial debug
@@ -97,64 +111,100 @@ void setup() {
 	DEBUG_PRINT(F("Inizializing FS..."));
 	if (SPIFFS.begin()){
 		DEBUG_PRINTLN(F("done."));
+	}else{
+		DEBUG_PRINTLN(F("fail."));
 	}
-	DEBUG_PRINTLN(F("fail."));
-
     //WiFiManager
     //Local intialization. Once its business is done, there is no need to keep it around
     WiFiManager wifiManager;
-    wifiManager.setConfigPortalTimeout(10);
+//    wifiManager.setConfigPortalTimeout(10);
 	WiFi.hostname(hostname);
 	wifi_station_set_hostname(hostname);
 
 	DEBUG_PRINT(F("Open config file..."));
 	fs::File configFile = SPIFFS.open("/mc/config.txt", "r");
 	if (configFile) {
+//		 while (configFile.available())
+//		    {
+//		      Serial1.write(configFile.read());
+//		    }
+//
 	    DEBUG_PRINTLN("done.");
 		DynamicJsonDocument doc;
 		DeserializationError error = deserializeJson(doc, configFile);
-		if (error) {
-			// if the file didn't open, print an error:
-			DEBUG_PRINT(F("Error parsing JSON "));
-			DEBUG_PRINTLN(error);
-		}
-
 		// close the file:
 		configFile.close();
 
-		JsonObject rootObj = doc.as<JsonObject>();
-		JsonObject serverConfig = rootObj["server"];
-		bool isStatic = serverConfig["isStatic"];
-		if (isStatic==true){
-			const char* address = serverConfig["address"];
-			const char* gatway = serverConfig["gatway"];
-			const char* netMask = serverConfig["netMask"];
-		    //start-block2
-		    IPAddress _ip;
-			bool parseSuccess;
-			parseSuccess = _ip.fromString(address);
-			if (parseSuccess) {
-				DEBUG_PRINTLN("Address correctly parsed!");
+		if (error){
+			// if the file didn't open, print an error:
+			DEBUG_PRINT(F("Error parsing JSON "));
+			DEBUG_PRINTLN(error.c_str());
+
+		}else{
+			JsonObject rootObj = doc.as<JsonObject>();
+			JsonObject serverConfig = rootObj["server"];
+			bool isStatic = serverConfig["isStatic"];
+			if (isStatic==true){
+				const char* address = serverConfig["address"];
+				const char* gatway = serverConfig["gatway"];
+				const char* netMask = serverConfig["netMask"];
+
+				const char* dns1 = serverConfig["dns1"];
+				const char* dns2 = serverConfig["dns2"];
+
+				const char* _hostname = serverConfig["hostname"];
+				//start-block2
+				IPAddress _ip;
+				bool parseSuccess;
+				parseSuccess = _ip.fromString(address);
+				if (parseSuccess) {
+					DEBUG_PRINTLN("Address correctly parsed!");
+				}
+
+				IPAddress _gw;
+				parseSuccess = _gw.fromString(gatway);
+				if (parseSuccess) {
+					DEBUG_PRINTLN("Gatway correctly parsed!");
+				}
+
+				IPAddress _sn;
+				parseSuccess = _sn.fromString(netMask);
+				if (parseSuccess) {
+					DEBUG_PRINTLN("Subnet correctly parsed!");
+				}
+
+				IPAddress _dns1;
+				IPAddress _dns2;
+				bool isDNS = false;
+				if (dns1 && sizeof(_dns1) > 7 && dns2 && sizeof(_dns2) > 7 ){
+					parseSuccess = _dns1.fromString(dns1);
+					if (parseSuccess) {
+						DEBUG_PRINTLN("DNS 1 correctly parsed!");
+						isDNS = true;
+					}
+
+					parseSuccess = _dns2.fromString(dns2);
+					if (parseSuccess) {
+						DEBUG_PRINTLN("DNS 2 correctly parsed!");
+					}
+					//end-block2
+				}
+				if (isDNS){
+					wifiManager.setSTAStaticIPConfig(_ip, _gw, _sn, _dns1, _dns2);
+				}else{
+					wifiManager.setSTAStaticIPConfig(_ip, _gw, _sn);
+				}
+
+				if (_hostname && sizeof(_hostname)>1){
+					strcpy(hostname, _hostname);
+				}
+				// IPAddress(85, 37, 17, 12), IPAddress(8, 8, 8, 8)
+
+				timeClient.setTimeOffset(1*60*60);
+				timeOffset = 1*60*60;
+	//
+	//		    emailSend.setEMailLogin("smtp.mischianti@gmail.com");
 			}
-
-		    IPAddress _gw;
-		    parseSuccess = _gw.fromString(gatway);
-		    if (parseSuccess) {
-				DEBUG_PRINTLN("Gatway correctly parsed!");
-			}
-
-		    IPAddress _sn;
-		    parseSuccess = _sn.fromString(netMask);
-		    if (parseSuccess) {
-				DEBUG_PRINTLN("Subnet correctly parsed!");
-			}
-		    //end-block2
-
-		    wifiManager.setSTAStaticIPConfig(_ip, _gw, _sn);
-
-		    timeClient.setTimeOffset(1*60*60);
-//
-//		    emailSend.setEMailLogin("smtp.mischianti@gmail.com");
 		}
 	}else{
 	    DEBUG_PRINTLN("fail.");
@@ -184,6 +234,12 @@ void setup() {
     DEBUG_PRINTLN(WiFi.gatewayIP());
     DEBUG_PRINT("SM --> ");
     DEBUG_PRINTLN(WiFi.subnetMask());
+
+    DEBUG_PRINT("DNS 1 --> ");
+    DEBUG_PRINTLN(WiFi.dnsIP(0));
+
+    DEBUG_PRINT("DNS 2 --> ");
+    DEBUG_PRINTLN(WiFi.dnsIP(1));
 
 	// Start inverter serial
 	DEBUG_PRINT(F("Initializing Inverter serial..."));
@@ -225,6 +281,16 @@ void setup() {
 	restServerRouting();
 	httpRestServer.begin();
     DEBUG_PRINTLN(F("HTTP REST Server Started"));
+#ifdef SERVER_FTP
+    ftpSrv.init();
+    DEBUG_PRINTLN(F("FTP Server Started"));
+#endif
+
+    if (!MDNS.begin(hostname)) {             // Start the mDNS responder for esp8266.local
+    	DEBUG_PRINTLN("Error setting up MDNS responder!");
+    }
+    DEBUG_PRINT(hostname);
+    DEBUG_PRINTLN(" --> mDNS responder started");
 }
 
 void loop() {
@@ -240,12 +306,15 @@ void loop() {
 	if (ManageStaticData.shouldRun()) {
 		ManageStaticData.run();
 	}
-
 	if (UpdateLocalTimeWithNTP.shouldRun()) {
 		UpdateLocalTimeWithNTP.run();
 	}
 
 	httpRestServer.handleClient();
+#ifdef SERVER_FTP
+	ftpSrv.service();
+#endif
+
 	timeClient.update();
 }
 
@@ -1071,6 +1140,9 @@ void postConfigFile() {
             		DEBUG_PRINTLN("done.");
             		serializeJson(doc, configFile);
             		httpRestServer.send(201, "application/json", postBody);
+//
+//            		delay(10000);
+//            		ESP.reset();
             	}
             }
             else {
@@ -1253,7 +1325,7 @@ void updateLocalTimeWithNTPCallback(){
 			if (timeDate.state.readState){
 				DEBUG_PRINTLN(F("Inverter Time retrieved."));
 				// Set correct time in Arduino Time librery
-				adjustTime(timeDate.epochTime);
+				adjustTime(timeDate.epochTime - timeOffset);
 				fixedTime = true;
 			}else{
 				DEBUG_PRINTLN(F("Inverter Time not retrieved."));
