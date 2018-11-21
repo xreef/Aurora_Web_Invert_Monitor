@@ -20,10 +20,10 @@
 #include <EMailSender.h>
 
 // Uncomment to enable server ftp.
-//#define SERVER_FTP
+ #define SERVER_FTP
 
 #ifdef SERVER_FTP
-#include <FtpServer.h>
+#include <ESP8266FtpServer.h>
 #endif
 
 // Uncomment to enable printing out nice debug messages.
@@ -74,7 +74,11 @@ Thread LeggiProduzione = Thread();
 #define HTTP_REST_PORT 8080
 ESP8266WebServer httpRestServer(HTTP_REST_PORT);
 
+#define HTTP_PORT 80
+ESP8266WebServer httpServer(HTTP_PORT);
+
 void restServerRouting();
+void serverRouting();
 
 WiFiUDP ntpUDP;
 // By default 'pool.ntp.org' is used with 60 seconds update interval and
@@ -94,7 +98,7 @@ float setPrecision(float val, byte precision);
 EMailSender emailSend("smtp.mischianti@gmail.com", "cicciolo77.");
 
 #ifdef SERVER_FTP
-FtpServer ftpSrv;
+FtpServer ftpSrv;   //set #define FTP_DEBUG in ESP8266FtpServer.h to see ftp verbose on serial
 #endif
 
 int timeOffset = 0;
@@ -149,6 +153,9 @@ void setup() {
 				bool isValue = GTM.containsKey("value");
 				if (isValue){
 					int value = GTM["value"];
+
+					DEBUG_PRINT("Impostazione GTM+")
+					DEBUG_PRINTLN(value)
 
 					timeClient.setTimeOffset(value*60*60);
 					timeOffset = value*60*60;
@@ -282,6 +289,8 @@ void setup() {
 	    timeToRetry--;
 	}
 
+//#ifndef SERVER_FTP
+
 	timeClient.begin();
 	updateLocalTimeWithNTPCallback();
 
@@ -290,9 +299,15 @@ void setup() {
 
 	restServerRouting();
 	httpRestServer.begin();
+
+	serverRouting();
+	httpServer.begin();
     DEBUG_PRINTLN(F("HTTP REST Server Started"));
+//#endif
+
 #ifdef SERVER_FTP
-    ftpSrv.init();
+//    SPIFFS.format();
+    ftpSrv.begin("aurora","aurora");    //username, password for ftp.  set ports in ESP8266FtpServer.h  (default 21, 50009 for PASV)
     DEBUG_PRINTLN(F("FTP Server Started"));
 #endif
 
@@ -304,16 +319,17 @@ void setup() {
 }
 
 void loop() {
+//#ifndef SERVER_FTP
 	// Activate thread
-	if (LeggiProduzione.shouldRun()) {
+	if (fixedTime && LeggiProduzione.shouldRun()) {
 		LeggiProduzione.run();
 	}
 
-	if (LeggiStatoInverter.shouldRun()) {
+	if (fixedTime && LeggiStatoInverter.shouldRun()) {
 		LeggiStatoInverter.run();
 	}
 
-	if (ManageStaticData.shouldRun()) {
+	if (fixedTime && ManageStaticData.shouldRun()) {
 		ManageStaticData.run();
 	}
 	if (UpdateLocalTimeWithNTP.shouldRun()) {
@@ -321,11 +337,15 @@ void loop() {
 	}
 
 	httpRestServer.handleClient();
-#ifdef SERVER_FTP
-	ftpSrv.service();
-#endif
+	httpServer.handleClient();
 
 	timeClient.update();
+//#endif
+
+#ifdef SERVER_FTP
+	  ftpSrv.handleFTP();        //make sure in loop you call handleFTP()!!
+#endif
+
 }
 
 // We can read/write a file at time in the SD card
@@ -1061,6 +1081,63 @@ void streamFileOnRest(String filename){
 		httpRestServer.send(204, "text/html", "File not exist!");
 	}
 }
+String getContentType(String filename){
+  if(filename.endsWith(".htm")) return "text/html";
+  else if(filename.endsWith(".html")) return "text/html";
+  else if(filename.endsWith(".css")) return "text/css";
+  else if(filename.endsWith(".js")) return "application/javascript";
+  else if(filename.endsWith(".png")) return "image/png";
+  else if(filename.endsWith(".gif")) return "image/gif";
+  else if(filename.endsWith(".jpg")) return "image/jpeg";
+  else if(filename.endsWith(".ico")) return "image/x-icon";
+  else if(filename.endsWith(".xml")) return "text/xml";
+  else if(filename.endsWith(".pdf")) return "application/x-pdf";
+  else if(filename.endsWith(".zip")) return "application/x-zip";
+  else if(filename.endsWith(".gz")) return "application/x-gzip";
+  return "text/plain";
+}
+
+bool handleFileRead(String path){  // send the right file to the client (if it exists)
+  DEBUG_PRINTLN("handleFileRead: " + path);
+  if(path.endsWith("/")) path += "index.html";           // If a folder is requested, send the index file
+  String contentType = getContentType(path);             // Get the MIME type
+  String pathWithGz = path + ".gz";
+  if(SPIFFS.exists(pathWithGz) || SPIFFS.exists(path)){  // If the file exists, either as a compressed archive, or normal
+    if(SPIFFS.exists(pathWithGz))                          // If there's a compressed version available
+      path += ".gz";                                         // Use the compressed version
+    fs::File file = SPIFFS.open(path, "r");                    // Open the file
+    size_t sent = httpServer.streamFile(file, contentType);    // Send it to the client
+    file.close();                                          // Close the file again
+    DEBUG_PRINTLN(String("\tSent file: ") + path);
+    return true;
+  }
+  DEBUG_PRINTLN(String("\tFile Not Found: ") + path);
+  return false;                                          // If the file doesn't exist, return false
+}
+
+void streamFile(const String filename){
+	if (SPIFFS.exists(filename)){
+		fs::File fileToStream = SPIFFS.open(filename, "r");
+		if (fileToStream){
+			if (fileToStream.available()){
+				DEBUG_PRINT(F("Stream file..."));
+				const String appContext = getContentType(filename);
+				httpRestServer.streamFile(fileToStream, appContext);
+				DEBUG_PRINTLN(F("done."));
+			}else{
+				DEBUG_PRINTLN(F("Data not available!"));
+				httpRestServer.send(204, "text/html", "Data not available!");
+			}
+			fileToStream.close();
+		}else{
+			DEBUG_PRINTLN(F("File not found!"));
+			httpRestServer.send(204, "text/html", "No content found!");
+		}
+	}else{
+		DEBUG_PRINTLN(F("File not found!"));
+		httpRestServer.send(204, "text/html", "File not exist!");
+	}
+}
 
 void getProduction(){
 	DEBUG_PRINTLN(F("getProduction"));
@@ -1311,6 +1388,14 @@ void restServerRouting() {
     httpRestServer.on("/inverterDayWithProblem", HTTP_GET, inverterDayWithProblem);
     httpRestServer.on("/inverterDayState", HTTP_GET, getInverterDayState);
 }
+
+void serverRouting() {
+	  httpServer.onNotFound([]() {                              // If the client requests any URI
+	    if (!handleFileRead(httpServer.uri()))                  // send it if it exists
+	    	httpServer.send(404, "text/plain", "404: Not Found"); // otherwise, respond with a 404 (Not Found) error
+	  });
+}
+
 
 void updateLocalTimeWithNTPCallback(){
 	DEBUG_PRINT(F("Thread call (updateLocalTimeWithNTPCallback) --> "));
