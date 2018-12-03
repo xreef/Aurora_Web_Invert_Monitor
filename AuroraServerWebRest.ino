@@ -21,10 +21,16 @@
 #include <EMailSender.h>
 
 // Uncomment to enable server ftp.
- #define SERVER_FTP
+//#define SERVER_FTP
+//#define SERVER_HTTPS
+//#define HARDWARE_SERIAL
 
 #ifdef SERVER_FTP
 #include <ESP8266FtpServer.h>
+#endif
+
+#ifdef SERVER_HTTPS
+#include <ESP8266WebServerSecure.h>
 #endif
 
 // Uncomment to enable printing out nice debug messages.
@@ -46,17 +52,25 @@
 char hostname[] = "InverterCentraline";
 
 // Interval get data
-#define DAILY_INTERVAL 5
-#define CUMULATIVE_INTERVAL 15
-#define CUMULATIVE_TOTAL_INTERVAL 5
-#define STATE_INTERVAL 5
-#define STATIC_DATA_INTERVAL 3 * 60
+#define DAILY_INTERVAL 10
+#define CUMULATIVE_INTERVAL 10
+#define CUMULATIVE_TOTAL_INTERVAL 10
+#define STATE_INTERVAL 10
+#define STATIC_DATA_INTERVAL 6 * 60
 
 // SD
 #define CS_PIN D8
 
+// LED
+#define ERROR_PIN D1
+
+#define INVERTER_COMMUNICATION_CONTROL_PIN D0
 // Inverte inizialization
-Aurora inverter = Aurora(2, D2, D3, D1);
+#ifdef HARDWARE_SERIAL
+Aurora inverter = Aurora(2, Serial, INVERTER_COMMUNICATION_CONTROL_PIN);
+#else
+Aurora inverter = Aurora(2, D2, D3, INVERTER_COMMUNICATION_CONTROL_PIN);
+#endif
 
 void manageStaticDataCallback ();
 void leggiProduzioneCallback();
@@ -64,7 +78,7 @@ void leggiStatoInverterCallback();
 void updateLocalTimeWithNTPCallback();
 
 bool saveJSonToAFile(DynamicJsonDocument *doc, String filename);
-JsonObject getJSonFromFile(DynamicJsonDocument *doc, String filename);
+JsonObject getJSonFromFile(DynamicJsonDocument *doc, String filename, bool forceCleanONJsonError = true);
 
 Thread ManageStaticData = Thread();
 
@@ -75,110 +89,65 @@ Thread LeggiProduzione = Thread();
 #define HTTP_REST_PORT 8080
 ESP8266WebServer httpRestServer(HTTP_REST_PORT);
 
-// The certificate is stored in PMEM
-static const uint8_t x509[] PROGMEM = {
-		0x30, 0x82, 0x01, 0xd3, 0x30, 0x82, 0x01, 0x3c, 0x02, 0x09, 0x00, 0xc5,
-		  0xfc, 0x28, 0xef, 0xf9, 0x7f, 0x1d, 0x23, 0x30, 0x0d, 0x06, 0x09, 0x2a,
-		  0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0b, 0x05, 0x00, 0x30, 0x2e,
-		  0x31, 0x18, 0x30, 0x16, 0x06, 0x03, 0x55, 0x04, 0x0a, 0x0c, 0x0f, 0x52,
-		  0x65, 0x6e, 0x7a, 0x6f, 0x4d, 0x69, 0x73, 0x63, 0x68, 0x69, 0x61, 0x6e,
-		  0x74, 0x69, 0x31, 0x12, 0x30, 0x10, 0x06, 0x03, 0x55, 0x04, 0x03, 0x0c,
-		  0x09, 0x31, 0x32, 0x37, 0x2e, 0x30, 0x2e, 0x30, 0x2e, 0x31, 0x30, 0x1e,
-		  0x17, 0x0d, 0x31, 0x38, 0x31, 0x31, 0x32, 0x34, 0x32, 0x31, 0x31, 0x31,
-		  0x32, 0x38, 0x5a, 0x17, 0x0d, 0x33, 0x32, 0x30, 0x38, 0x30, 0x32, 0x32,
-		  0x31, 0x31, 0x31, 0x32, 0x38, 0x5a, 0x30, 0x2e, 0x31, 0x18, 0x30, 0x16,
-		  0x06, 0x03, 0x55, 0x04, 0x0a, 0x0c, 0x0f, 0x52, 0x65, 0x6e, 0x7a, 0x6f,
-		  0x4d, 0x69, 0x73, 0x63, 0x68, 0x69, 0x61, 0x6e, 0x74, 0x69, 0x31, 0x12,
-		  0x30, 0x10, 0x06, 0x03, 0x55, 0x04, 0x03, 0x0c, 0x09, 0x31, 0x32, 0x37,
-		  0x2e, 0x30, 0x2e, 0x30, 0x2e, 0x31, 0x30, 0x81, 0x9f, 0x30, 0x0d, 0x06,
-		  0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01, 0x05, 0x00,
-		  0x03, 0x81, 0x8d, 0x00, 0x30, 0x81, 0x89, 0x02, 0x81, 0x81, 0x00, 0xba,
-		  0x62, 0xa9, 0xc2, 0xa6, 0x7e, 0x87, 0x19, 0x58, 0xe3, 0x21, 0x52, 0xfe,
-		  0xee, 0x83, 0x08, 0xca, 0xeb, 0x09, 0xb1, 0x50, 0x70, 0x9d, 0xe1, 0xe4,
-		  0xb6, 0xa2, 0x5e, 0xca, 0xc8, 0x5a, 0x6e, 0x95, 0x8e, 0x7b, 0x50, 0x69,
-		  0x23, 0x38, 0x5d, 0x65, 0x9f, 0x05, 0x68, 0xe5, 0x07, 0x04, 0x67, 0xac,
-		  0x8e, 0x85, 0x61, 0x5d, 0x68, 0x01, 0xcc, 0x1a, 0x60, 0xfc, 0xd7, 0x07,
-		  0xce, 0x61, 0x59, 0x5b, 0x88, 0xa7, 0xe6, 0xb7, 0xe7, 0xf4, 0x26, 0x6f,
-		  0xa4, 0xe2, 0xfa, 0x6a, 0x2f, 0x06, 0xbe, 0x90, 0x28, 0x9f, 0xb1, 0x0e,
-		  0x7e, 0xb3, 0xf1, 0x5c, 0xaa, 0x84, 0xcf, 0x79, 0xc1, 0xfe, 0xc2, 0x03,
-		  0x0f, 0x6e, 0x6b, 0xfc, 0x3b, 0xfb, 0x4d, 0x1f, 0x0c, 0x13, 0xd8, 0x5b,
-		  0x91, 0xac, 0x05, 0x21, 0x36, 0x76, 0x4e, 0x40, 0x3f, 0xce, 0x77, 0xe5,
-		  0x4a, 0xf1, 0x49, 0x95, 0xa0, 0x34, 0xbd, 0x02, 0x03, 0x01, 0x00, 0x01,
-		  0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01,
-		  0x0b, 0x05, 0x00, 0x03, 0x81, 0x81, 0x00, 0x61, 0x6f, 0xc6, 0x6c, 0x30,
-		  0x61, 0xaf, 0x5c, 0x52, 0xf3, 0x0e, 0x08, 0x44, 0xce, 0xf3, 0x32, 0x99,
-		  0x89, 0x75, 0x23, 0x6b, 0x04, 0x1f, 0x2d, 0xd3, 0xd8, 0x96, 0x41, 0xdf,
-		  0x56, 0xb4, 0x50, 0x36, 0xbf, 0x64, 0x86, 0xdd, 0x70, 0x06, 0x29, 0x93,
-		  0x50, 0xa3, 0xd3, 0x44, 0xba, 0x45, 0xb1, 0x1b, 0x73, 0x68, 0x43, 0x99,
-		  0x72, 0x70, 0x49, 0x74, 0x87, 0x32, 0x89, 0x6a, 0xe3, 0x43, 0x38, 0x13,
-		  0x62, 0x39, 0xd1, 0xa5, 0x61, 0x14, 0xa7, 0x8f, 0xb1, 0x93, 0x6a, 0xba,
-		  0x69, 0x16, 0xa1, 0xd1, 0xf2, 0x89, 0xcf, 0x48, 0xf0, 0x3d, 0x4e, 0x88,
-		  0x9d, 0xbb, 0xa0, 0x4b, 0x13, 0x60, 0xf2, 0x58, 0x8f, 0x0b, 0xcc, 0x37,
-		  0x7c, 0x55, 0xb4, 0x28, 0x7f, 0xb3, 0x64, 0x19, 0xf4, 0xed, 0x84, 0xe5,
-		  0x0b, 0x65, 0x19, 0x06, 0xa0, 0xa6, 0xbd, 0x19, 0x3d, 0xa6, 0x65, 0x5b,
-		  0xf7, 0x0b, 0xc9
-};
+#ifdef SERVER_HTTPS
+static const char serverCert[] PROGMEM = R"EOF(
+-----BEGIN CERTIFICATE-----
+MIIDDjCCAfagAwIBAgIQNqQC531UdrtOiCvz8JHQTDANBgkqhkiG9w0BAQsFADAU
+MRIwEAYDVQQDDAlsb2NhbGhvc3QwHhcNMTgwOTMwMjAwMDQ1WhcNMzgwOTMwMjAx
+MDQ0WjAUMRIwEAYDVQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IB
+DwAwggEKAoIBAQCrY932OMWnQynPBqtOOm/4dR6aQaSXdeLAUcRjlDy+AEl8C0Xe
+sBbwi1dpBatqyFpnYnoWkfduLOCJM4x8J1aoufMHO/XkNP19b8tViFpsmEiwtQnQ
+uSKQy8tGtlehYHBEqSqv1E5OkgTAlgYtAEJcY1Ih8DG1vWhMJ73CJcR5fkSQ1OMR
+6AUaJORxLyKk0pgmKHmXeue2jP9aiuf1gHJQE9BcIRLpX9jElEA9rTvH5f9yLieg
+gP8r1x6BmB/gsyIQ0mnft6aJpyEaJ2XLL4ggnqpHOjrVUZ5AKzk2GQrnQlaZnnZ2
+xiiY2R9rp6U6lDWivPgOpaQUZ1c8jGvaV/2hAgMBAAGjXDBaMA4GA1UdDwEB/wQE
+AwIFoDAUBgNVHREEDTALgglsb2NhbGhvc3QwEwYDVR0lBAwwCgYIKwYBBQUHAwEw
+HQYDVR0OBBYEFOtRfncRTORMIF/wndrep6DmLsZUMA0GCSqGSIb3DQEBCwUAA4IB
+AQABwfZ54kRSMGSHXQkIkSJaI8DRByMCro+WCjZnWawfaqJOpihbVC5riZ1oQuyD
+gNe8sMoqI2R/xKthUaYsrXb50yVlZ2QLiW9MzOHnd6DkivDNGVBMsu0pKG7nLEiZ
+1wnoMxzIrkSYakHLBPhmMMeCl7ahRC29xRMlup46okxcH5xTirM27TUl3Oy8mZcY
+UpT+QiqXdcWVFAsTKZfJRzCa1+Su480clKeUuFTYSnuyQ1CNCcnoj3RtR7p8TAzk
+Ht6qiI8BQ8kcPiRcYCdWK5g2SBs5QpaAB3/S3IxN8CAu5+CiTkPjmdcCijUJ1VoL
+/VxlMAt54NKKnN1MfCgVh4Gb
+-----END CERTIFICATE-----
+)EOF";
 
-// And so is the key.  These could also be in DRAM
-static const uint8_t rsakey[] PROGMEM = {
-		  0x30, 0x82, 0x02, 0x5d, 0x02, 0x01, 0x00, 0x02, 0x81, 0x81, 0x00, 0xba,
-		  0x62, 0xa9, 0xc2, 0xa6, 0x7e, 0x87, 0x19, 0x58, 0xe3, 0x21, 0x52, 0xfe,
-		  0xee, 0x83, 0x08, 0xca, 0xeb, 0x09, 0xb1, 0x50, 0x70, 0x9d, 0xe1, 0xe4,
-		  0xb6, 0xa2, 0x5e, 0xca, 0xc8, 0x5a, 0x6e, 0x95, 0x8e, 0x7b, 0x50, 0x69,
-		  0x23, 0x38, 0x5d, 0x65, 0x9f, 0x05, 0x68, 0xe5, 0x07, 0x04, 0x67, 0xac,
-		  0x8e, 0x85, 0x61, 0x5d, 0x68, 0x01, 0xcc, 0x1a, 0x60, 0xfc, 0xd7, 0x07,
-		  0xce, 0x61, 0x59, 0x5b, 0x88, 0xa7, 0xe6, 0xb7, 0xe7, 0xf4, 0x26, 0x6f,
-		  0xa4, 0xe2, 0xfa, 0x6a, 0x2f, 0x06, 0xbe, 0x90, 0x28, 0x9f, 0xb1, 0x0e,
-		  0x7e, 0xb3, 0xf1, 0x5c, 0xaa, 0x84, 0xcf, 0x79, 0xc1, 0xfe, 0xc2, 0x03,
-		  0x0f, 0x6e, 0x6b, 0xfc, 0x3b, 0xfb, 0x4d, 0x1f, 0x0c, 0x13, 0xd8, 0x5b,
-		  0x91, 0xac, 0x05, 0x21, 0x36, 0x76, 0x4e, 0x40, 0x3f, 0xce, 0x77, 0xe5,
-		  0x4a, 0xf1, 0x49, 0x95, 0xa0, 0x34, 0xbd, 0x02, 0x03, 0x01, 0x00, 0x01,
-		  0x02, 0x81, 0x80, 0x36, 0x21, 0xd5, 0xa0, 0x1c, 0xee, 0xfe, 0x99, 0xd4,
-		  0x01, 0x13, 0x7a, 0xa1, 0x63, 0xf0, 0x56, 0xab, 0x68, 0x9c, 0x06, 0x0d,
-		  0x90, 0xc7, 0xaa, 0x05, 0xdd, 0x2d, 0x47, 0x4e, 0xa9, 0xe5, 0xe9, 0xdc,
-		  0x31, 0xe7, 0x8a, 0xb1, 0x1e, 0x73, 0x8e, 0x5c, 0xa7, 0x54, 0xd0, 0xe4,
-		  0x43, 0xa7, 0x79, 0xdc, 0xd9, 0xff, 0xcf, 0x09, 0x6b, 0xdd, 0xa9, 0xc3,
-		  0xb7, 0x8b, 0x77, 0x80, 0x62, 0xe6, 0x4e, 0xa8, 0x2b, 0x42, 0x10, 0xe6,
-		  0x8a, 0x05, 0x4e, 0xa5, 0xff, 0x16, 0x03, 0x41, 0x11, 0x7b, 0x97, 0xb6,
-		  0x25, 0x95, 0xe1, 0xf2, 0x40, 0xc5, 0x88, 0x47, 0x82, 0x4d, 0x3e, 0xd8,
-		  0x5f, 0xad, 0x52, 0x03, 0xd2, 0xe2, 0xc3, 0xce, 0xfd, 0x3e, 0x6e, 0x7c,
-		  0x3e, 0xfe, 0xe3, 0xa0, 0x01, 0x60, 0xff, 0xf6, 0x01, 0xd2, 0xf9, 0xfa,
-		  0xc0, 0xcb, 0x4a, 0x26, 0xc4, 0x9e, 0xdd, 0xcd, 0xda, 0x9f, 0x01, 0x02,
-		  0x41, 0x00, 0xee, 0xff, 0x8e, 0xc6, 0x3b, 0x18, 0xa9, 0x6f, 0x1a, 0x2c,
-		  0x61, 0x06, 0xb4, 0xdc, 0xca, 0x7b, 0x68, 0xd1, 0x2b, 0xef, 0x12, 0x98,
-		  0x55, 0xdb, 0xe8, 0x81, 0x49, 0xc2, 0x70, 0xed, 0xd5, 0x55, 0xb5, 0xeb,
-		  0xf4, 0x38, 0x25, 0x25, 0x5f, 0x89, 0x1d, 0xe5, 0xf6, 0xb2, 0x0e, 0x13,
-		  0x21, 0x7a, 0x07, 0x36, 0x53, 0xfc, 0xb2, 0x0f, 0xc9, 0xef, 0xa1, 0x3c,
-		  0x56, 0x0c, 0xb1, 0x16, 0x1d, 0x9d, 0x02, 0x41, 0x00, 0xc7, 0xa4, 0xf6,
-		  0x6c, 0xbd, 0x1d, 0x08, 0x5f, 0xa6, 0xd8, 0x30, 0x25, 0x97, 0x81, 0xc8,
-		  0xcb, 0x74, 0xa1, 0xef, 0x8d, 0xe7, 0xbe, 0x21, 0x0f, 0xec, 0xe7, 0x65,
-		  0xe9, 0xb1, 0xab, 0x10, 0x5b, 0x6b, 0x8c, 0xac, 0x1e, 0x3e, 0x50, 0x3c,
-		  0x02, 0x0d, 0x49, 0x94, 0x24, 0xbb, 0x03, 0xb4, 0xad, 0x2b, 0x5a, 0x79,
-		  0xb0, 0x9e, 0xf6, 0x58, 0x5d, 0x4e, 0x97, 0x57, 0x11, 0xca, 0x5c, 0x59,
-		  0xa1, 0x02, 0x41, 0x00, 0x9e, 0xf8, 0x4d, 0xb7, 0x7d, 0x47, 0x82, 0x2b,
-		  0xec, 0x74, 0xe8, 0x74, 0xd5, 0x88, 0xa7, 0x06, 0x3f, 0x4a, 0x22, 0xb6,
-		  0xfa, 0xdf, 0x68, 0xfc, 0xc5, 0x42, 0x7a, 0x15, 0x63, 0x98, 0x4e, 0xf6,
-		  0x9b, 0xf3, 0x3e, 0x96, 0xb9, 0xde, 0x8a, 0x15, 0x62, 0x55, 0xbc, 0x29,
-		  0xe3, 0x42, 0xc6, 0x59, 0xac, 0xc2, 0x6e, 0x4a, 0xff, 0x05, 0x91, 0x84,
-		  0x5a, 0xf3, 0x0f, 0x29, 0x92, 0x00, 0xeb, 0xe1, 0x02, 0x40, 0x05, 0xf1,
-		  0x7c, 0x40, 0x8a, 0x74, 0xb5, 0xce, 0x1b, 0x2a, 0x6e, 0x6c, 0x80, 0x11,
-		  0x26, 0x08, 0x20, 0x85, 0xbd, 0x9a, 0xec, 0xde, 0x35, 0x1f, 0xc3, 0x3e,
-		  0xb4, 0x42, 0xfb, 0xbe, 0x0a, 0xf3, 0x9d, 0xc5, 0x07, 0x4e, 0xb3, 0x2e,
-		  0x32, 0x4b, 0x21, 0x58, 0x22, 0x67, 0xe1, 0x85, 0x5f, 0xb8, 0x94, 0x04,
-		  0xd2, 0x80, 0x96, 0x8a, 0xe0, 0xe0, 0x8e, 0x39, 0x65, 0x27, 0x2b, 0x6e,
-		  0x0a, 0x61, 0x02, 0x41, 0x00, 0xe1, 0x3b, 0xa8, 0xa4, 0x75, 0xe9, 0xd6,
-		  0xd7, 0x6e, 0x0f, 0x88, 0x00, 0x69, 0x5f, 0xe2, 0x3d, 0x68, 0x5d, 0x40,
-		  0x03, 0x18, 0xa6, 0xed, 0x3b, 0x85, 0x8d, 0x97, 0x4c, 0x46, 0x21, 0xe8,
-		  0x6b, 0x7b, 0xa2, 0x3f, 0x46, 0x3c, 0x4c, 0xc6, 0xaf, 0xf9, 0x2c, 0x39,
-		  0x19, 0x06, 0x86, 0x63, 0xd2, 0x6c, 0x25, 0x8d, 0x21, 0x35, 0xec, 0xd4,
-		  0x7c, 0x36, 0xea, 0x6e, 0x0a, 0xcb, 0x02, 0xa9, 0x51
-};
+static const char serverKey[] PROGMEM =  R"EOF(
+-----BEGIN RSA PRIVATE KEY-----
+MIIEowIBAAKCAQEAq2Pd9jjFp0MpzwarTjpv+HUemkGkl3XiwFHEY5Q8vgBJfAtF
+3rAW8ItXaQWrashaZ2J6FpH3bizgiTOMfCdWqLnzBzv15DT9fW/LVYhabJhIsLUJ
+0LkikMvLRrZXoWBwRKkqr9ROTpIEwJYGLQBCXGNSIfAxtb1oTCe9wiXEeX5EkNTj
+EegFGiTkcS8ipNKYJih5l3rntoz/Worn9YByUBPQXCES6V/YxJRAPa07x+X/ci4n
+oID/K9cegZgf4LMiENJp37emiachGidlyy+IIJ6qRzo61VGeQCs5NhkK50JWmZ52
+dsYomNkfa6elOpQ1orz4DqWkFGdXPIxr2lf9oQIDAQABAoIBAB/Y9NvV/NRx5Ij1
+wktNDJVsnf0oCX+jhjkaeJXQa+EaiI0mQxt4OSsFmX6IcSvsgvAHGoyrHwE4EZkt
+HQPNA4ti0kgb2jtHpXrzlSMVrUfUnF1JpsNEQ6oIVIOVSn9QPkxj6uy1VL/A3mUy
++37NN4eXZSGtUm9k/MZ59AbpobK5eAXmCxvgss4ZPDW3QGnXqVT8bu6RXaF7Ph64
+KMUajkrGEyU9ff8MRzykb3kBit0nchOBvtETRg39L2MtXpnJoLzElZPr5ZbcwHk2
+Xp4iuL8D6hoiA0r0jAeYNYZkTW96u4u0eysyUV4xbVuOmozFHCiE/zOa0uW7xjrp
+hzPiE2kCgYEA1CnXyUCWiaIN29T//PfuZRiAHFWxG3RaiR7VprMZGsebx7aEVRsP
+EPgw0PILAOvNQIWwJWClCoKIWSf0grgDp+QhKAtyk5AaEspr7fXCXf8IK6xh+tDz
+OxlRbvQlYwWOFsXLZ3cu1vPuIAUEL4ez/EKeYQ1GC/W86cRBcM6r0mMCgYEAzs1c
+r34Tv7Asrec+BxZKrPbq1gaLG4ivVoiZTpo+6MOIGI236tKZIWouy2GklknoE36N
+rxz2KrPAFwg6V8N7q1CG/yNn5WJbasPLnb7ygauZ6yiyC4bqaXSKjrZJ2P4UYVOX
+t66K/Qr7Ud5gvDfStXPFdun0dUEgfDZqovpS7SsCgYBi5yqft8s1V+UsAIxhCdcJ
+K7W0/8FzMfduioBAmKbwU/Lr08q2vcl1OK3RCbRVdpcVJ/0oP3hQgO882KJkOZIC
+txc5yrRb08ZD0jckE/fKx7OwYEjAmp14hGHw3kF7esB1Hzml/upH7Ciqpov/+DvQ
+MeIRDhYER0cMlp+HDeENTwKBgEXSYlvCForewYcJjxC3fwj86PbQCMGIGaL+xbwb
+KehOtDGOD62R4y+7+Qaj9fzkAR4r2UxpW9e5Dr74ATLGhoelzZ5w5tA0sCbQ6ntd
+D+Wl+XbDK7HmoFhwh6N9eltwFZNytMPIg5bB0W6nxUNnGZY3+1CV1vqLvZsSiFh0
+afE3AoGBAMDHbH2YCshMkDJ5RqZs3gVFQX5jXbUh1+j8/bJrWyW49TErGqWOFKxy
+0hJbrLFftgnNuABWQw2Ve11rdboXGqIGhLNksRDFPHOYhgrzvw41DCllI7d3n5ij
+sYyW+iXYsiV5NCrE9KvlKkjxA5FJMdb8qiq5uZ03PxxtNTyVhfy+
+-----END RSA PRIVATE KEY-----
+)EOF";
 
+#define SECURE_HTTP_PORT 443
+BearSSL::ESP8266WebServerSecure httpServer(SECURE_HTTP_PORT);
+#else
 #define HTTP_PORT 80
 ESP8266WebServer httpServer(HTTP_PORT);
-
-//#define SECURE_HTTP_PORT 443
-//ESP8266WebServerSecure httpServer(SECURE_HTTP_PORT);
+#endif
 
 void restServerRouting();
 void serverRouting();
@@ -191,6 +160,8 @@ NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", 1*60*60, 60*60*1000);
 Thread UpdateLocalTimeWithNTP = Thread();
 
 bool fixedTime = false;
+bool sdStarted = false;
+bool wifiConnected = false;
 
 float setPrecision(float val, byte precision);
 
@@ -207,6 +178,11 @@ FtpServer ftpSrv;   //set #define FTP_DEBUG in ESP8266FtpServer.h to see ftp ver
 int timeOffset = 0;
 
 void setup() {
+	pinMode(A0, INPUT);
+
+	pinMode(ERROR_PIN, OUTPUT);
+	digitalWrite(ERROR_PIN, HIGH);
+
 	#ifdef AURORA_SERVER_DEBUG
 		// Inizilization of serial debug
 		Serial1.begin(19200);
@@ -229,7 +205,7 @@ void setup() {
 	wifi_station_set_hostname(hostname);
 
 	DEBUG_PRINT(F("Open config file..."));
-	fs::File configFile = SPIFFS.open("/mc/config.txt", "r");
+	fs::File configFile = SPIFFS.open(F("/mc/config.txt"), "r");
 	if (configFile) {
 //		 while (configFile.available())
 //		    {
@@ -257,7 +233,7 @@ void setup() {
 				if (isValue){
 					int value = GTM["value"];
 
-					DEBUG_PRINT("Impostazione GTM+")
+					DEBUG_PRINT(F("Impostazione GTM+"))
 					DEBUG_PRINTLN(value)
 
 					timeClient.setTimeOffset(value*60*60);
@@ -281,19 +257,19 @@ void setup() {
 				bool parseSuccess;
 				parseSuccess = _ip.fromString(address);
 				if (parseSuccess) {
-					DEBUG_PRINTLN("Address correctly parsed!");
+					DEBUG_PRINTLN(F("Address correctly parsed!"));
 				}
 
 				IPAddress _gw;
 				parseSuccess = _gw.fromString(gatway);
 				if (parseSuccess) {
-					DEBUG_PRINTLN("Gatway correctly parsed!");
+					DEBUG_PRINTLN(F("Gatway correctly parsed!"));
 				}
 
 				IPAddress _sn;
 				parseSuccess = _sn.fromString(netMask);
 				if (parseSuccess) {
-					DEBUG_PRINTLN("Subnet correctly parsed!");
+					DEBUG_PRINTLN(F("Subnet correctly parsed!"));
 				}
 
 				IPAddress _dns1;
@@ -302,13 +278,13 @@ void setup() {
 				if (dns1 && sizeof(_dns1) > 7 && dns2 && sizeof(_dns2) > 7 ){
 					parseSuccess = _dns1.fromString(dns1);
 					if (parseSuccess) {
-						DEBUG_PRINTLN("DNS 1 correctly parsed!");
+						DEBUG_PRINTLN(F("DNS 1 correctly parsed!"));
 						isDNS = true;
 					}
 
 					parseSuccess = _dns2.fromString(dns2);
 					if (parseSuccess) {
-						DEBUG_PRINTLN("DNS 2 correctly parsed!");
+						DEBUG_PRINTLN(F("DNS 2 correctly parsed!"));
 					}
 					//end-block2
 				}
@@ -327,7 +303,7 @@ void setup() {
 			}
 		}
 	}else{
-	    DEBUG_PRINTLN("fail.");
+	    DEBUG_PRINTLN(F("fail."));
 	}
 
     //reset saved settings
@@ -348,17 +324,17 @@ void setup() {
     //if you get here you have connected to the WiFi
     DEBUG_PRINTLN(F("WIFIManager connected!"));
 
-    DEBUG_PRINT("IP --> ");
+    DEBUG_PRINT(F("IP --> "));
     DEBUG_PRINTLN(WiFi.localIP());
-    DEBUG_PRINT("GW --> ");
+    DEBUG_PRINT(F("GW --> "));
     DEBUG_PRINTLN(WiFi.gatewayIP());
-    DEBUG_PRINT("SM --> ");
+    DEBUG_PRINT(F("SM --> "));
     DEBUG_PRINTLN(WiFi.subnetMask());
 
-    DEBUG_PRINT("DNS 1 --> ");
+    DEBUG_PRINT(F("DNS 1 --> "));
     DEBUG_PRINTLN(WiFi.dnsIP(0));
 
-    DEBUG_PRINT("DNS 2 --> ");
+    DEBUG_PRINT(F("DNS 2 --> "));
     DEBUG_PRINTLN(WiFi.dnsIP(1));
 
 	// Start inverter serial
@@ -368,10 +344,13 @@ void setup() {
 
 	// Start inizialization of SD cart
 	DEBUG_PRINT(F("Initializing SD card..."));
-	if (!SD.begin(CS_PIN)) {
+	if (!SD.begin(CS_PIN, SPI_FULL_SPEED)) {
 		DEBUG_PRINTLN(F("initialization failed!"));
+		sdStarted = false;
+		// return to stop all
 		return;
 	}
+	sdStarted = true;
 	DEBUG_PRINTLN(F("Inizialization done."));
 
 	ManageStaticData.onRun(manageStaticDataCallback);
@@ -391,6 +370,7 @@ void setup() {
 	    DEBUG_PRINT ( "." );
 	    timeToRetry--;
 	}
+	wifiConnected = true;
 
 //#ifndef SERVER_FTP
 
@@ -404,11 +384,16 @@ void setup() {
 	httpRestServer.begin();
     DEBUG_PRINTLN(F("HTTP REST Server Started"));
 
-//	httpServer.setServerKeyAndCert_P(rsakey, sizeof(rsakey), x509, sizeof(x509));
+#ifdef SERVER_HTTPS
+	httpServer.setRSACert(new BearSSLX509List(serverCert), new BearSSLPrivateKey(serverKey));
+#endif
 	serverRouting();
 	httpServer.begin();
+#ifdef SERVER_HTTPS
     DEBUG_PRINTLN(F("HTTPS Server Started"));
-//#endif
+#else
+    DEBUG_PRINTLN(F("HTTP Server Started"));
+#endif
 
 #ifdef SERVER_FTP
 //    SPIFFS.format();
@@ -417,10 +402,20 @@ void setup() {
 #endif
 
     if (!MDNS.begin(hostname)) {             // Start the mDNS responder for esp8266.local
-    	DEBUG_PRINTLN("Error setting up MDNS responder!");
+    	DEBUG_PRINTLN(F("Error setting up MDNS responder!"));
     }
     DEBUG_PRINT(hostname);
-    DEBUG_PRINTLN(" --> mDNS responder started");
+    DEBUG_PRINTLN(F(" --> mDNS responder started"));
+
+    DEBUG_PRINT("ERROR --> ");
+    DEBUG_PRINTLN(!(fixedTime && sdStarted&& wifiConnected));
+
+    digitalWrite(ERROR_PIN, !(fixedTime && sdStarted&& wifiConnected));
+
+    DEBUG_PRINTLN("FIRST LOAD...")
+    leggiStatoInverterCallback();
+    manageStaticDataCallback();
+    leggiProduzioneCallback();
 }
 
 void loop() {
@@ -458,15 +453,20 @@ File myFileSDCart; // @suppress("Ambiguous problem")
 
 void leggiStatoInverterCallback() {
 	DEBUG_PRINT(F("Thread call (LeggiStatoInverterCallback) --> "));
-	DEBUG_PRINTLN(getEpochStringByParams(now()));
+	DEBUG_PRINT(getEpochStringByParams(now()));
+	DEBUG_PRINT(F(" MEM --> "));
+	DEBUG_PRINTLN(ESP.getFreeHeap())
 
 	Aurora::DataState dataState = inverter.readState();
-	if (dataState.state.readState == true) {
+	DEBUG_PRINT(F("Read state --> "));
+	DEBUG_PRINTLN(dataState.state.readState);
+
+	if (dataState.state.readState == 1) {
 		DEBUG_PRINTLN(F("done."));
 
 		DEBUG_PRINT(F("Create json..."));
 
-		String scopeDirectory = F("alarms");
+		String scopeDirectory = "alarms";
 		if (!SD.exists(scopeDirectory)) {
 			SD.mkdir(scopeDirectory);
 		}
@@ -515,7 +515,7 @@ void leggiStatoInverterCallback() {
 			data = obj["data"];
 		}
 
-		bool inverterProblem = dataState.alarmState > 0 || dataState.inverterState != 2;
+		bool inverterProblem = dataState.alarmState > 0 || (dataState.inverterState != 2 && dataState.inverterState != 1);
 
 		bool firstElement = data.size() == 0;
 
@@ -586,7 +586,7 @@ void leggiStatoInverterCallback() {
 				saveJSonToAFile(&docAS, filenameAL);
 
 				DEBUG_PRINT(F("Open config file..."));
-				fs::File configFile = SPIFFS.open("/mc/config.txt", "r");
+				fs::File configFile = SPIFFS.open(F("/mc/config.txt"), "r");
 				if (configFile) {
 				    DEBUG_PRINTLN("done.");
 					DynamicJsonDocument doc;
@@ -688,7 +688,7 @@ void leggiStatoInverterCallback() {
 										||
 										(ch2=="on_problem" && dataState.channel1State != 2)
 										||
-										(state=="on_problem" && dataState.inverterState != 2)
+										(state=="on_problem" && (dataState.inverterState != 2 && dataState.inverterState != 1))
 								);
 
 							    DEBUG_PRINT(F("Check allNotification "));
@@ -706,14 +706,14 @@ void leggiStatoInverterCallback() {
 									const String mp = emailNotification["messageProblem"];
 									const String mnp = emailNotification["messageNoProblem"];
 									message.message = ((inverterProblem)?mp:mnp)+
-													"<br>Alarm: "+dataState.getAlarmState()+
-													"<br>CH1: "+dataState.getDcDcChannel1State() +
-													"<br>CH2: "+dataState.getDcDcChannel2State()+
-													"<br>Stato: "+dataState.getInverterState();
+													F("<br>Alarm: ")+dataState.getAlarmState()+
+													F("<br>CH1: ")+dataState.getDcDcChannel1State() +
+													F("<br>CH2: ")+dataState.getDcDcChannel2State()+
+													F("<br>Stato: ")+dataState.getInverterState();
 
 									EMailSender::Response resp = emailSend.send(emailElem["email"], message);
 
-									DEBUG_PRINTLN("Sending status: ");
+									DEBUG_PRINTLN(F("Sending status: "));
 									const String em = emailElem["email"];
 									DEBUG_PRINTLN(em);
 									DEBUG_PRINTLN(resp.status);
@@ -726,7 +726,7 @@ void leggiStatoInverterCallback() {
 						}
 					}
 				}else{
-				    DEBUG_PRINTLN("fail.");
+				    DEBUG_PRINTLN(F("fail."));
 				}
 
 			}
@@ -739,32 +739,40 @@ void leggiStatoInverterCallback() {
 
 void manageStaticDataCallback () {
 	DEBUG_PRINT(F("Thread call (manageStaticDataCallback) --> "));
-	DEBUG_PRINTLN(getEpochStringByParams(now()));
+	DEBUG_PRINT(getEpochStringByParams(now()));
+	DEBUG_PRINT(F(" MEM --> "));
+	DEBUG_PRINTLN(ESP.getFreeHeap())
 
 	DEBUG_PRINT(F("Data version read... "));
 	Aurora::DataVersion dataVersion = inverter.readVersion();
+	DEBUG_PRINTLN(dataVersion.state.readState);
 
 	DEBUG_PRINT(F("Firmware release read... "));
 	Aurora::DataFirmwareRelease firmwareRelease = inverter.readFirmwareRelease();
+	DEBUG_PRINTLN(firmwareRelease.state.readState);
 
 	DEBUG_PRINT(F("System SN read... "));
 	Aurora::DataSystemSerialNumber systemSN = inverter.readSystemSerialNumber();
+	DEBUG_PRINTLN(systemSN.readState);
 
 	DEBUG_PRINT(F("Manufactoru Week Year read... "));
 	Aurora::DataManufacturingWeekYear manufactoryWeekYear = inverter.readManufacturingWeekYear();
+	DEBUG_PRINTLN(manufactoryWeekYear.state.readState);
 
 	DEBUG_PRINT(F("systemPN read... "));
 	Aurora::DataSystemPN systemPN = inverter.readSystemPN();
+	DEBUG_PRINTLN(systemPN.readState);
 
 	DEBUG_PRINT(F("configStatus read... "));
 	Aurora::DataConfigStatus configStatus = inverter.readConfig();
+	DEBUG_PRINTLN(configStatus.state.readState);
 
-	if (dataVersion.state.readState == true){
+	if (dataVersion.state.readState == 1){
     	DEBUG_PRINTLN(F("done."));
 
     	DEBUG_PRINT(F("Create json..."));
 
-		String scopeDirectory = F("static");
+		String scopeDirectory = "static";
 		if (!SD.exists(scopeDirectory)){
 			SD.mkdir(scopeDirectory);
 		}
@@ -809,12 +817,8 @@ void manageStaticDataCallback () {
 
 }
 
-void leggiProduzioneCallback() {
-	DEBUG_PRINT(F("Thread call (leggiProduzioneCallback) --> "));
-	DEBUG_PRINTLN(getEpochStringByParams(now()));
-
-	tm nowDt = getDateTimeByParams(now());
-
+void cumulatedEnergyDaily(tm nowDt){
+	String scopeDirectory = "monthly";
 	// Save cumulative data
 	if (nowDt.tm_min % CUMULATIVE_INTERVAL == 0) {
 		Aurora::DataCumulatedEnergy dce = inverter.readCumulatedEnergy(
@@ -825,7 +829,6 @@ void leggiProduzioneCallback() {
 		if (dce.state.readState == 1) {
 			unsigned long energy = dce.energy;
 
-			String scopeDirectory = F("monthly");
 			if (!SD.exists(scopeDirectory)) {
 				SD.mkdir(scopeDirectory);
 			}
@@ -834,7 +837,7 @@ void leggiProduzioneCallback() {
 			float powerPeak = dsp.value;
 
 			if (energy && energy > 0) {
-				String filename = scopeDirectory + F("/")
+				String filename = scopeDirectory + "/"
 						+ getEpochStringByParams(now(), (char*) "%Y%m")
 						+ ".jso";
 				String tagName = getEpochStringByParams(now(), (char*) "%d");
@@ -867,11 +870,14 @@ void leggiProduzioneCallback() {
 
 		}
 	}
+}
 
+void readTotals(tm nowDt){
+	String scopeDirectory = "states";
 	// Save cumulative data
 	if (nowDt.tm_min % CUMULATIVE_TOTAL_INTERVAL == 0) {
 
-		DEBUG_PRINTLN("Get all totals.");
+		DEBUG_PRINTLN(F("Get all totals."));
 		Aurora::DataCumulatedEnergy dce = inverter.readCumulatedEnergy(
 		CUMULATED_TOTAL_ENERGY_LIFETIME);
 		unsigned long energyLifetime = dce.energy;
@@ -895,119 +901,19 @@ void leggiProduzioneCallback() {
 			unsigned long energyDaily = dce.energy;
 			DEBUG_PRINTLN(energyDaily);
 
-			String scopeDirectory = F("states");
+
 			if (!SD.exists(scopeDirectory)) {
 				SD.mkdir(scopeDirectory);
 			}
 			if (dce.state.readState == 1 && energyLifetime) {
-				String filename = scopeDirectory + F("/lastStat.jso");
+				String filename = scopeDirectory + "/lastStat.jso";
 				String tagName = getEpochStringByParams(now(), (char*) "%d");
 
 				DynamicJsonDocument doc;
 				JsonObject obj = doc.to<JsonObject>();;
 
-//				obj = getJSonFromFile(&doc, filename);
-//
-//				if (obj.containsKey("energyWeekly")){
-//					if (obj["energyWeekly"]>energyWeekly){
-//						String dir = scopeDirectory +"/weeks";
-//						if (!SD.exists(dir)) {
-//							SD.mkdir(dir);
-//						}
-//						obj.remove("lastUpdate");
-//						obj.remove("energyLifetime");
-//						obj.remove("energyYearly");
-//						obj.remove("energyDaily");
-//						obj.remove("energyMonthly");
-//
-//						obj.remove("M");
-//						obj.remove("Y");
-//
-//						String filenamem = dir +'/'+getEpochStringByParams(now(), (char*) "%Y")+ F(".jso");
-//						DynamicJsonDocument docM;
-//						JsonObject objM = getJSonFromFile(&docM, filenamem);
-//
-//						objM["lastUpdate"] = getEpochStringByParams(now());
-//
-//						JsonArray dataM;
-//						if (!objM.containsKey("data")) {
-//							dataM = objM.createNestedArray("data");
-//						} else {
-//							dataM = objM["data"];
-//						}
-//
-//						dataM.add(obj);
-//
-//						saveJSonToAFile(&docM, filenamem);
-//					}
-//				}
-//				if (obj.containsKey("energyMonthly")){
-//					if (obj["energyMonthly"]>energyMonthly){
-//						String dir = scopeDirectory +"/months";
-//						if (!SD.exists(dir)) {
-//							SD.mkdir(dir);
-//						}
-//
-//						obj.remove("lastUpdate");
-//						obj.remove("energyLifetime");
-//						obj.remove("energyWeekly");
-//						obj.remove("energyDaily");
-//
-//						obj.remove("W");
-//						obj.remove("Y");
-//
-//						String filenamem = dir +'/'+getEpochStringByParams(now(), (char*) "%Y")+ F(".jso");
-//						DynamicJsonDocument docM;
-//						JsonObject objM = getJSonFromFile(&docM, filenamem);
-//
-//						objM["lastUpdate"] = getEpochStringByParams(now());
-//
-//						JsonArray dataM;
-//						if (!objM.containsKey("data")) {
-//							dataM = objM.createNestedArray("data");
-//						} else {
-//							dataM = objM["data"];
-//						}
-//
-//						dataM.add(obj);
-//
-//						saveJSonToAFile(&docM, filenamem);
-//					}
-//				}
-//				if (obj.containsKey("energyYearly")){
-//					if (obj["energyYearly"]>energyYearly){
-//
-//						obj.remove("lastUpdate");
-//
-//						obj.remove("energyWeekly");
-//						obj.remove("energyMonthly");
-//						obj.remove("energyDaily");
-//
-//						obj.remove("W");
-//						obj.remove("M");
-//
-//						String filenamem = scopeDirectory + F("/years.jso");
-//						DynamicJsonDocument docM;
-//						JsonObject objM = getJSonFromFile(&docM, filenamem);
-//
-//						objM["lastUpdate"] = getEpochStringByParams(now());
-//
-//						JsonArray dataM;
-//						if (!objM.containsKey("data")) {
-//							dataM = objM.createNestedArray("data");
-//						} else {
-//							dataM = objM["data"];
-//						}
-//
-//						dataM.add(obj);
-//
-//						saveJSonToAFile(&docM, filenamem);
-//					}
-//				}
-
 				obj["lastUpdate"] = getEpochStringByParams(now());
 
-//			JsonObject dayData = obj.createNestedObject(tagName);
 				obj["energyLifetime"] = energyLifetime;
 				obj["energyYearly"] = energyYearly;
 				obj["energyMonthly"] = energyMonthly;
@@ -1025,43 +931,60 @@ void leggiProduzioneCallback() {
 
 				saveJSonToAFile(&doc, filename);
 
-				DynamicJsonDocument docW;
-				JsonObject objW;
-
 				{
-					String dir = scopeDirectory +"/weeks";
-					String filenamem = dir +'/'+getEpochStringByParams(now(), (char*) "%Y")+ F(".jso");
+					DynamicJsonDocument docW;
+					JsonObject objW;
 
-					objW = getJSonFromFile(&doc, filename);
+					String dir = scopeDirectory + "/weeks";
+					if (!SD.exists(dir)) {
+						SD.mkdir(dir);
+					}
+
+					String filenamew = dir +'/'+getEpochStringByParams(now(), (char*) "%Y")+ ".jso";
+
+					objW = getJSonFromFile(&docW, filenamew);
 					objW[getEpochStringByParams(now(), (char*) "%Y%W")] = energyWeekly;
 
-					saveJSonToAFile(&docW, filename);
+					saveJSonToAFile(&docW, filenamew);
 				}
 				{
-					String dir = scopeDirectory +"/months";
-					String filenamem = dir +'/'+getEpochStringByParams(now(), (char*) "%Y")+ F(".jso");
+					DynamicJsonDocument docM;
+					JsonObject objM;
 
-					objW = getJSonFromFile(&doc, filename);
+					String dir = scopeDirectory + "/months";
+					if (!SD.exists(dir)) {
+						SD.mkdir(dir);
+					}
 
-					objW[getEpochStringByParams(now(), (char*) "%Y%m")] = energyMonthly;
+					String filenamem = dir +'/'+getEpochStringByParams(now(), (char*) "%Y")+ ".jso";
 
-					saveJSonToAFile(&docW, filename);
+					objM = getJSonFromFile(&docM, filenamem);
+
+					objM[getEpochStringByParams(now(), (char*) "%Y%m")] = energyMonthly;
+
+					saveJSonToAFile(&docM, filenamem);
 				}
 				{
-					String filenamem = scopeDirectory + F("/years.jso");
+					DynamicJsonDocument docY;
+					JsonObject objY;
 
-					objW = getJSonFromFile(&doc, filename);
+					String filenamey = scopeDirectory + "/years.jso";
 
-					objW[getEpochStringByParams(now(), (char*) "%Y")] = energyYearly;
+					objY = getJSonFromFile(&docY, filenamey);
 
-					saveJSonToAFile(&docW, filename);
+					objY[getEpochStringByParams(now(), (char*) "%Y")] = energyYearly;
+
+					saveJSonToAFile(&docY, filenamey);
 				}
 
 			}
 		}
 	}
 
-	String scopeDirectory = F("product");
+}
+
+void readProductionDaily(tm nowDt){
+	String scopeDirectory = "product";
 	if (!SD.exists(scopeDirectory)) {
 		SD.mkdir(scopeDirectory);
 	}
@@ -1097,8 +1020,8 @@ void leggiProduzioneCallback() {
 						SD.mkdir(scopeDirectory + '/' + dataDirectory);
 					}
 
-					String filenameDir = scopeDirectory + F("/") + dataDirectory
-							+ F("/") + filename;
+					String filenameDir = scopeDirectory + "/" + dataDirectory
+							+ "/" + filename;
 
 					DynamicJsonDocument doc;
 					JsonObject obj;
@@ -1127,9 +1050,23 @@ void leggiProduzioneCallback() {
 			}
 		}
 	}
+
 }
 
-JsonObject getJSonFromFile(DynamicJsonDocument *doc, String filename) {
+void leggiProduzioneCallback() {
+	DEBUG_PRINT(F("Thread call (leggiProduzioneCallback) --> "));
+	DEBUG_PRINT(getEpochStringByParams(now()));
+	DEBUG_PRINT(F(" MEM --> "));
+	DEBUG_PRINTLN(ESP.getFreeHeap());
+
+	tm nowDt = getDateTimeByParams(now());
+
+	cumulatedEnergyDaily(nowDt);
+	readTotals(nowDt);
+	readProductionDaily(nowDt);
+}
+
+JsonObject getJSonFromFile(DynamicJsonDocument *doc, String filename, bool forceCleanONJsonError ) {
 	// open the file for reading:
 	myFileSDCart = SD.open(filename);
 	if (myFileSDCart) {
@@ -1143,6 +1080,10 @@ JsonObject getJSonFromFile(DynamicJsonDocument *doc, String filename) {
 			// if the file didn't open, print an error:
 			DEBUG_PRINT(F("Error parsing JSON "));
 			DEBUG_PRINTLN(error);
+
+			if (forceCleanONJsonError){
+				return doc->to<JsonObject>();
+			}
 		}
 
 		// close the file:
@@ -1191,10 +1132,10 @@ bool saveJSonToAFile(DynamicJsonDocument *doc, String filename) {
 }
 
 void setCrossOrigin(){
-	httpRestServer.sendHeader("Access-Control-Allow-Origin", "*");
-	httpRestServer.sendHeader("Access-Control-Max-Age", "10000");
-	httpRestServer.sendHeader("Access-Control-Allow-Methods", "PUT,POST,GET,OPTIONS");
-	httpRestServer.sendHeader("Access-Control-Allow-Headers", "*");
+	httpRestServer.sendHeader(F("Access-Control-Allow-Origin"), F("*"));
+	httpRestServer.sendHeader(F("Access-Control-Max-Age"), F("10000"));
+	httpRestServer.sendHeader(F("Access-Control-Allow-Methods"), F("PUT,POST,GET,OPTIONS"));
+	httpRestServer.sendHeader(F("Access-Control-Allow-Headers"), F("*"));
 };
 
 void streamFileOnRest(String filename){
@@ -1203,41 +1144,46 @@ void streamFileOnRest(String filename){
 		if (myFileSDCart){
 			if (myFileSDCart.available()){
 				DEBUG_PRINT(F("Stream file..."));
-				httpRestServer.streamFile(myFileSDCart, "application/json");
-				DEBUG_PRINTLN(F("done."));
+				DEBUG_PRINT(filename);
+				httpRestServer.streamFile(myFileSDCart, F("application/json"));
+				DEBUG_PRINTLN(F("...done."));
 			}else{
 				DEBUG_PRINTLN(F("Data not available!"));
-				httpRestServer.send(204, "text/html", "Data not available!");
+				httpRestServer.send(204, F("text/html"), F("Data not available!"));
 			}
 			myFileSDCart.close();
 		}else{
-			DEBUG_PRINTLN(F("File not found!"));
-			httpRestServer.send(204, "text/html", "No content found!");
+			DEBUG_PRINT(filename);
+			DEBUG_PRINTLN(F(" not found!"));
+
+			httpRestServer.send(204, F("text/html"), F("No content found!"));
 		}
 	}else{
-		DEBUG_PRINTLN(F("File not found!"));
-		httpRestServer.send(204, "text/html", "File not exist!");
+		DEBUG_PRINT(filename);
+		DEBUG_PRINTLN(F(" not found!"));
+		httpRestServer.send(204, F("text/html"), F("File not exist!"));
 	}
 }
 String getContentType(String filename){
-  if(filename.endsWith(".htm")) return "text/html";
-  else if(filename.endsWith(".html")) return "text/html";
-  else if(filename.endsWith(".css")) return "text/css";
-  else if(filename.endsWith(".js")) return "application/javascript";
-  else if(filename.endsWith(".json")) return "application/json";
-  else if(filename.endsWith(".png")) return "image/png";
-  else if(filename.endsWith(".gif")) return "image/gif";
-  else if(filename.endsWith(".jpg")) return "image/jpeg";
-  else if(filename.endsWith(".ico")) return "image/x-icon";
-  else if(filename.endsWith(".xml")) return "text/xml";
-  else if(filename.endsWith(".pdf")) return "application/x-pdf";
-  else if(filename.endsWith(".zip")) return "application/x-zip";
-  else if(filename.endsWith(".gz")) return "application/x-gzip";
-  return "text/plain";
+  if(filename.endsWith(".htm")) 		return F("text/html");
+  else if(filename.endsWith(".html")) 	return F("text/html");
+  else if(filename.endsWith(".css")) 	return F("text/css");
+  else if(filename.endsWith(".js")) 	return F("application/javascript");
+  else if(filename.endsWith(".json")) 	return F("application/json");
+  else if(filename.endsWith(".png")) 	return F("image/png");
+  else if(filename.endsWith(".gif")) 	return F("image/gif");
+  else if(filename.endsWith(".jpg")) 	return F("image/jpeg");
+  else if(filename.endsWith(".ico")) 	return F("image/x-icon");
+  else if(filename.endsWith(".xml")) 	return F("text/xml");
+  else if(filename.endsWith(".pdf")) 	return F("application/x-pdf");
+  else if(filename.endsWith(".zip")) 	return F("application/x-zip");
+  else if(filename.endsWith(".gz")) 	return F("application/x-gzip");
+  return F("text/plain");
 }
 
 bool handleFileRead(String path){  // send the right file to the client (if it exists)
-  DEBUG_PRINTLN("handleFileRead: " + path);
+  DEBUG_PRINT(F("handleFileRead: "));
+  DEBUG_PRINTLN(path);
   if(path.endsWith("/")) path += "index.html";           // If a folder is requested, send the index file
   String contentType = getContentType(path);             // Get the MIME type
   String pathWithGz = path + ".gz";
@@ -1284,7 +1230,7 @@ void getProduction(){
 	setCrossOrigin();
 
 	if (httpRestServer.arg("day")== "" || httpRestServer.arg("type")== "" ){     //Parameter not found
-		httpRestServer.send(400, "text/html", "Missing required parameter!");
+		httpRestServer.send(400, F("text/html"), F("Missing required parameter!"));
 		DEBUG_PRINTLN(F("No parameter"));
 	}else{     //Parameter found
 		DEBUG_PRINT(F("Read file: "));
@@ -1303,8 +1249,8 @@ void getProductionTotal(){
 
 
 	DEBUG_PRINT(F("Read file: "));
-	String scopeDirectory = F("states");
-	String filename =  scopeDirectory+F("/lastStat.jso");
+	String scopeDirectory = "states";
+	String filename =  scopeDirectory+"/lastStat.jso";
 
 
 	DEBUG_PRINTLN(filename);
@@ -1317,14 +1263,40 @@ void getMontlyValue(){
 	DEBUG_PRINTLN(F("getMontlyValue"));
 
 	setCrossOrigin();
-	String scopeDirectory = F("monthly");
+	String scopeDirectory = "monthly";
 
 	if (httpRestServer.arg("month")== ""){     //Parameter not found
-		httpRestServer.send(400, "text/html", "Missing required parameter!");
+		httpRestServer.send(400, F("text/html"), F("Missing required parameter!"));
 		DEBUG_PRINTLN(F("No parameter"));
 	}else{     //Parameter found
 		DEBUG_PRINT(F("Read file: "));
 		String filename = scopeDirectory+'/'+httpRestServer.arg("month")+".jso";
+		streamFileOnRest(filename);
+	}
+}
+
+void getHistoricalValue(){
+	DEBUG_PRINTLN(F("getHistoricalValue"));
+
+	setCrossOrigin();
+	String scopeDirectory = "states";
+
+	if (httpRestServer.arg("frequence")== ""){     //Parameter not found
+		httpRestServer.send(400, F("text/html"), F("Missing required parameter!"));
+		DEBUG_PRINTLN(F("No frequence parameter"));
+	}else{     //Parameter found
+		String filename;
+		if (httpRestServer.arg("frequence") == "years"){
+			filename = scopeDirectory+'/'+httpRestServer.arg("frequence")+".jso";
+		}else{
+			if (httpRestServer.arg("year")== ""){
+				httpRestServer.send(400, F("text/html"), F("Missing required parameter!"));
+				DEBUG_PRINTLN(F("No year parameter"));
+			}else{
+				filename = scopeDirectory+'/'+httpRestServer.arg("frequence")+'/'+httpRestServer.arg("year")+".jso";
+			}
+		}
+		DEBUG_PRINT(F("Read file: "));
 		streamFileOnRest(filename);
 	}
 }
@@ -1366,9 +1338,11 @@ void postConfigFile() {
             		DEBUG_PRINTLN("done.");
             		serializeJson(doc, configFile);
             		httpRestServer.send(201, "application/json", postBody);
-//
-//            		delay(10000);
-//            		ESP.reset();
+
+//            	  DEBUG_PRINTLN(F("Reset"));
+//				  delay(15000);
+//				  ESP.reset();
+//				  delay(2000);
             	}
             }
             else {
@@ -1408,7 +1382,7 @@ void getInverterInfo(){
 
 	setCrossOrigin();
 
-	String scopeDirectory = F("static");
+	String scopeDirectory = "static";
 
 	DEBUG_PRINT(F("Read file: "));
 	String filename = scopeDirectory+"/invinfo.jso";
@@ -1420,31 +1394,33 @@ void inverterDayWithProblem() {
 
 	setCrossOrigin();
 
-	String scopeDirectory = F("alarms");
+	String scopeDirectory = "alarms";
 
 	myFileSDCart = SD.open(scopeDirectory);
+
 
 	DynamicJsonDocument doc;
 	JsonObject rootObj = doc.to<JsonObject>();
 
 	JsonArray data = rootObj.createNestedArray("data");
 
-	while (true) {
+	if (myFileSDCart){
+		while (true) {
 
-		File entry = myFileSDCart.openNextFile();
-		if (!entry) {
-			// no more files
-			break;
+			File entry = myFileSDCart.openNextFile();
+			if (!entry) {
+				// no more files
+				break;
+			}
+			DEBUG_PRINTLN(entry.name());
+			if (entry.isDirectory()) {
+				data.add(entry.name());
+			}
+			entry.close();
 		}
-		DEBUG_PRINTLN(entry.name());
-		if (entry.isDirectory()) {
-			data.add(entry.name());
-		}
-		entry.close();
+
+		myFileSDCart.close();
 	}
-
-	myFileSDCart.close();
-
 	if (data.size() > 0) {
 		DEBUG_PRINT(F("Stream file..."));
 		String buf;
@@ -1462,7 +1438,7 @@ void getInverterDayState() {
 
 	setCrossOrigin();
 
-	String scopeDirectory = F("alarms");
+	String scopeDirectory = "alarms";
 
 	DEBUG_PRINT(F("Read file: "));
 
@@ -1486,7 +1462,7 @@ void getInverterLastState(){
 
 	setCrossOrigin();
 
-	String scopeDirectory = F("alarms");
+	String scopeDirectory = "alarms";
 
 	DEBUG_PRINT(F("Read file: "));
 
@@ -1495,6 +1471,44 @@ void getInverterLastState(){
 	filename = scopeDirectory+"/alarStat.jso";
 
 	streamFileOnRest(filename);
+}
+
+void getServerState(){
+	DEBUG_PRINTLN(F("getServerState"));
+
+	setCrossOrigin();
+
+	DynamicJsonDocument doc;
+	JsonObject rootObj = doc.to<JsonObject>();
+
+	JsonObject net = rootObj.createNestedObject("network");
+
+	net["ip"] = WiFi.localIP().toString();
+	net["gw"] = WiFi.gatewayIP().toString();
+	net["nm"] = WiFi.subnetMask().toString();
+
+	net["dns1"] = WiFi.dnsIP(0).toString();
+	net["dns2"] = WiFi.dnsIP(1).toString();
+
+	net["signalStrengh"] = WiFi.RSSI();
+
+	JsonObject chip = rootObj.createNestedObject("chip");
+	chip["chipId"] = ESP.getChipId();
+	chip["flashChipId"] = ESP.getFlashChipId();
+	chip["flashChipSize"] = ESP.getFlashChipSize();
+	chip["flashChipRealSize"] = ESP.getFlashChipRealSize();
+
+
+	uint8_t raw = analogRead(A0);
+	float volt=raw/1023.0;
+	volt=volt*4.2;
+	chip["batteryVoltage"] = volt;
+
+	DEBUG_PRINT(F("Stream file..."));
+	String buf;
+	serializeJson(rootObj, buf);
+	httpRestServer.send(200, "application/json", buf);
+	DEBUG_PRINTLN(F("done."));
 }
 
 void sendCrossOriginHeader(){
@@ -1518,6 +1532,8 @@ void restServerRouting() {
     httpRestServer.on("/productionTotal", HTTP_GET, getProductionTotal);
     httpRestServer.on("/monthly", HTTP_GET, getMontlyValue);
 
+    httpRestServer.on("/historical", HTTP_GET, getHistoricalValue);
+
     httpRestServer.on("/config", HTTP_OPTIONS, sendCrossOriginHeader);
     httpRestServer.on("/config", HTTP_POST, postConfigFile);
     httpRestServer.on("/config", HTTP_GET, getConfigFile);
@@ -1526,12 +1542,18 @@ void restServerRouting() {
     httpRestServer.on("/inverterState", HTTP_GET, getInverterLastState);
     httpRestServer.on("/inverterDayWithProblem", HTTP_GET, inverterDayWithProblem);
     httpRestServer.on("/inverterDayState", HTTP_GET, getInverterDayState);
+
+    httpRestServer.on("/serverState", HTTP_GET, getServerState);
+
 }
 
 void serverRouting() {
 	  httpServer.onNotFound([]() {                              // If the client requests any URI
-	    if (!handleFileRead(httpServer.uri()))                  // send it if it exists
+		  DEBUG_PRINTLN(F("On not found"));
+	    if (!handleFileRead(httpServer.uri())){                  // send it if it exists
+	    	DEBUG_PRINTLN(F("Not found"));
 	    	httpServer.send(404, "text/plain", "404: Not Found"); // otherwise, respond with a 404 (Not Found) error
+	    }
 	  });
 }
 
@@ -1569,6 +1591,8 @@ void updateLocalTimeWithNTPCallback(){
 
 		DEBUG_PRINTLN(getEpochStringByParams(now()));
 	}
+
+    digitalWrite(ERROR_PIN, !(fixedTime && sdStarted&& wifiConnected));
 }
 
 float setPrecision(float val, byte precision){
