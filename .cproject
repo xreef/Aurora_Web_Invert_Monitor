@@ -16,9 +16,9 @@
 					<folderInfo id="io.sloeber.core.toolChain.release.1470130863.740371547" name="/" resourcePath="">
 						<toolChain id="io.sloeber.core.toolChain.release.1417280953" name="Arduino Toolchain (Sloeber edition)" superClass="io.sloeber.core.toolChain.release">
 							<targetPlatform archList="all" binaryParser="org.eclipse.cdt.core.ELF" id="io.sloeber.targetplatform.1334086080" name="Arduino Target" osList="all" superClass="io.sloeber.targetplatform"/>
-							<builder buildPath="${workspace_loc:/AuroraConnectionStoreJsonSD}/Release" id="io.sloeber.sketch.builder.875388546" keepEnvironmentInBuildfile="false" managedBuildOn="true" name="Arduino sketch builder" superClass="io.sloeber.sketch.builder"/>
+							<builder buildPath="${workspace_loc:/AuroraConnectionStoreJsonSD}/Release" id="io.sloeber.sketch.builder.875388546" keepEnvironmentInBuildfile="false" managedBuildOn="true" name="Generatore di sketch Arduino" superClass="io.sloeber.sketch.builder"/>
 							<tool id="io.sloeber.tool.sketch.compiler.cpp.1630641979" name="Arduino C++ Compiler" superClass="io.sloeber.tool.sketch.compiler.cpp">
-								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="io.sloeber.compiler.cpp.sketch.option.incpath.256892359" name="Include Paths (-I)" superClass="io.sloeber.compiler.cpp.sketch.option.incpath" valueType="includePath">
+								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="io.sloeber.compiler.cpp.sketch.option.incpath.256892359" name="Cartelle incluse (-I)" superClass="io.sloeber.compiler.cpp.sketch.option.incpath" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/core/core}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/core/variant}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/ArduinoJson/src}&quot;"/>
@@ -38,10 +38,10 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/ESP8266mDNS}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/esp8266FTPServer}&quot;"/>
 								</option>
-								<inputType id="io.sloeber.compiler.cpp.sketch.input.903989226" name="CPP source files" superClass="io.sloeber.compiler.cpp.sketch.input"/>
+								<inputType id="io.sloeber.compiler.cpp.sketch.input.903989226" name="Sorgente CPP" superClass="io.sloeber.compiler.cpp.sketch.input"/>
 							</tool>
 							<tool id="io.sloeber.tool.compiler.c.1742765359" name="Arduino C Compiler" superClass="io.sloeber.tool.compiler.c">
-								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="io.sloeber.compiler.c.sketch.option.incpath.1916241747" name="Include Paths (-I)" superClass="io.sloeber.compiler.c.sketch.option.incpath" valueType="includePath">
+								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="io.sloeber.compiler.c.sketch.option.incpath.1916241747" name="Cartelle incluse (-I)" superClass="io.sloeber.compiler.c.sketch.option.incpath" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/core/core}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/core/variant}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/ArduinoJson/src}&quot;"/>
@@ -61,10 +61,10 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/ESP8266mDNS}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/esp8266FTPServer}&quot;"/>
 								</option>
-								<inputType id="io.sloeber.compiler.c.sketch.input.1757420875" name="C Source Files" superClass="io.sloeber.compiler.c.sketch.input"/>
+								<inputType id="io.sloeber.compiler.c.sketch.input.1757420875" name="Sorgente C" superClass="io.sloeber.compiler.c.sketch.input"/>
 							</tool>
 							<tool id="io.sloeber.tool.sketch.compiler.s.1418229046" name="Arduino Assembler" superClass="io.sloeber.tool.sketch.compiler.s">
-								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="io.sloeber.compiler.asm.sketch.option.incpath.47132048" name="Include Paths (-I)" superClass="io.sloeber.compiler.asm.sketch.option.incpath" valueType="includePath">
+								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="io.sloeber.compiler.asm.sketch.option.incpath.47132048" name="Cartelle incluse (-I)" superClass="io.sloeber.compiler.asm.sketch.option.incpath" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/core/core}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/core/variant}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/ArduinoJson/src}&quot;"/>
@@ -84,7 +84,7 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/ESP8266mDNS}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/esp8266FTPServer}&quot;"/>
 								</option>
-								<inputType id="io.sloeber.compiler.S.sketch.input.1151373035" name="Assembly source files" superClass="io.sloeber.compiler.S.sketch.input"/>
+								<inputType id="io.sloeber.compiler.S.sketch.input.1151373035" name="Sorgente Assembly" superClass="io.sloeber.compiler.S.sketch.input"/>
 							</tool>
 							<tool id="io.sloeber.tool.ar.58309160" name="Arduino archiver" superClass="io.sloeber.tool.ar"/>
 							<tool id="io.sloeber.tool.combine.121025598" name="Arduino combiner" superClass="io.sloeber.tool.combine"/>

@@ -21,9 +21,9 @@
 #include <EMailSender.h>
 
 // Uncomment to enable server ftp.
-//#define SERVER_FTP
+#define SERVER_FTP
 //#define SERVER_HTTPS
-//#define HARDWARE_SERIAL
+#define HARDWARE_SERIAL
 
 #ifdef SERVER_FTP
 #include <ESP8266FtpServer.h>
@@ -62,7 +62,11 @@ char hostname[] = "InverterCentraline";
 #define CS_PIN D8
 
 // LED
-#define ERROR_PIN D1
+#ifdef HARDWARE_SERIAL
+	#define ERROR_PIN D3
+#else
+	#define ERROR_PIN D1
+#endif
 
 #define INVERTER_COMMUNICATION_CONTROL_PIN D0
 // Inverte inizialization
@@ -77,8 +81,11 @@ void leggiProduzioneCallback();
 void leggiStatoInverterCallback();
 void updateLocalTimeWithNTPCallback();
 
+bool isFileSaveOK = true;
 bool saveJSonToAFile(DynamicJsonDocument *doc, String filename);
 JsonObject getJSonFromFile(DynamicJsonDocument *doc, String filename, bool forceCleanONJsonError = true);
+
+void errorLed(bool flag);
 
 Thread ManageStaticData = Thread();
 
@@ -337,6 +344,31 @@ void setup() {
     DEBUG_PRINT(F("DNS 2 --> "));
     DEBUG_PRINTLN(WiFi.dnsIP(1));
 
+
+	DEBUG_PRINT(F("Recreate settings file..."));
+	fs::File settingsFile = SPIFFS.open("/settings.json", "w");
+	if (!settingsFile) {
+	    DEBUG_PRINTLN("fail.");
+	}else{
+		DEBUG_PRINTLN("done.");
+		DynamicJsonDocument doc;
+		JsonObject postObj = doc.to<JsonObject>();
+		postObj["localIP"] = WiFi.localIP().toString();
+		postObj["localRestPort"] = HTTP_REST_PORT;
+
+		String buf;
+		serializeJson(postObj, buf);
+
+		settingsFile.print(F("var settings = "));
+		settingsFile.print(buf);
+		settingsFile.print(";");
+
+		settingsFile.close();
+
+//		serializeJson(doc, settingsFile);
+	    DEBUG_PRINTLN("success.");
+	}
+
 	// Start inverter serial
 	DEBUG_PRINT(F("Initializing Inverter serial..."));
 	inverter.begin();
@@ -410,7 +442,9 @@ void setup() {
     DEBUG_PRINT("ERROR --> ");
     DEBUG_PRINTLN(!(fixedTime && sdStarted&& wifiConnected));
 
-    digitalWrite(ERROR_PIN, !(fixedTime && sdStarted&& wifiConnected));
+	errorLed(!(fixedTime && sdStarted&& wifiConnected && isFileSaveOK));
+
+//    digitalWrite(ERROR_PIN, !(fixedTime && sdStarted&& wifiConnected && isFileSaveOK));
 
     DEBUG_PRINTLN("FIRST LOAD...")
     leggiStatoInverterCallback();
@@ -492,7 +526,7 @@ void leggiStatoInverterCallback() {
 
 		DEBUG_PRINTLN(F("done."));
 
-		saveJSonToAFile(&doc, filename);
+		isFileSaveOK = saveJSonToAFile(&doc, filename);
 
 		// If alarm present or inverterState not running
 //		if (dataState.alarmState>0 || dataState.inverterState!=2){
@@ -583,7 +617,7 @@ void leggiStatoInverterCallback() {
 					SD.mkdir(scopeDirectory + '/' + dayDirectory);
 				}
 
-				saveJSonToAFile(&docAS, filenameAL);
+				isFileSaveOK = saveJSonToAFile(&docAS, filenameAL);
 
 				DEBUG_PRINT(F("Open config file..."));
 				fs::File configFile = SPIFFS.open(F("/mc/config.txt"), "r");
@@ -812,7 +846,7 @@ void manageStaticDataCallback () {
 
 		DEBUG_PRINTLN(F("done."));
 
-		saveJSonToAFile(&doc, filename);
+		isFileSaveOK = saveJSonToAFile(&doc, filename);
 	}
 
 }
@@ -865,7 +899,7 @@ void cumulatedEnergyDaily(tm nowDt){
 				DEBUG_PRINT(doc.memoryUsage());
 				DEBUG_PRINTLN();
 
-				saveJSonToAFile(&doc, filename);
+				isFileSaveOK = saveJSonToAFile(&doc, filename);
 			}
 
 		}
@@ -929,7 +963,7 @@ void readTotals(tm nowDt){
 				DEBUG_PRINT(doc.memoryUsage());
 				DEBUG_PRINTLN();
 
-				saveJSonToAFile(&doc, filename);
+				isFileSaveOK = saveJSonToAFile(&doc, filename);
 
 				{
 					DynamicJsonDocument docW;
@@ -945,7 +979,7 @@ void readTotals(tm nowDt){
 					objW = getJSonFromFile(&docW, filenamew);
 					objW[getEpochStringByParams(now(), (char*) "%Y%W")] = energyWeekly;
 
-					saveJSonToAFile(&docW, filenamew);
+					isFileSaveOK = saveJSonToAFile(&docW, filenamew);
 				}
 				{
 					DynamicJsonDocument docM;
@@ -962,7 +996,7 @@ void readTotals(tm nowDt){
 
 					objM[getEpochStringByParams(now(), (char*) "%Y%m")] = energyMonthly;
 
-					saveJSonToAFile(&docM, filenamem);
+					isFileSaveOK = saveJSonToAFile(&docM, filenamem);
 				}
 				{
 					DynamicJsonDocument docY;
@@ -974,7 +1008,7 @@ void readTotals(tm nowDt){
 
 					objY[getEpochStringByParams(now(), (char*) "%Y")] = energyYearly;
 
-					saveJSonToAFile(&docY, filenamey);
+					isFileSaveOK = saveJSonToAFile(&docY, filenamey);
 				}
 
 			}
@@ -1045,7 +1079,7 @@ void readProductionDaily(tm nowDt){
 					DEBUG_PRINT(doc.memoryUsage());
 					DEBUG_PRINTLN();
 
-					saveJSonToAFile(&doc, filenameDir);
+					isFileSaveOK = saveJSonToAFile(&doc, filenameDir);
 				}
 			}
 		}
@@ -1064,6 +1098,10 @@ void leggiProduzioneCallback() {
 	cumulatedEnergyDaily(nowDt);
 	readTotals(nowDt);
 	readProductionDaily(nowDt);
+
+	errorLed(!(fixedTime && sdStarted&& wifiConnected && isFileSaveOK));
+
+//    digitalWrite(ERROR_PIN, !(fixedTime && sdStarted&& wifiConnected && isFileSaveOK));
 }
 
 JsonObject getJSonFromFile(DynamicJsonDocument *doc, String filename, bool forceCleanONJsonError ) {
@@ -1482,6 +1520,7 @@ void getServerState(){
 	JsonObject rootObj = doc.to<JsonObject>();
 
 	JsonObject net = rootObj.createNestedObject("network");
+	rootObj["lastUpdate"] = getEpochStringByParams(now());
 
 	net["ip"] = WiFi.localIP().toString();
 	net["gw"] = WiFi.gatewayIP().toString();
@@ -1592,9 +1631,15 @@ void updateLocalTimeWithNTPCallback(){
 		DEBUG_PRINTLN(getEpochStringByParams(now()));
 	}
 
-    digitalWrite(ERROR_PIN, !(fixedTime && sdStarted&& wifiConnected));
+	errorLed(!(fixedTime && sdStarted&& wifiConnected && isFileSaveOK));
+//    digitalWrite(ERROR_PIN, !(fixedTime && sdStarted&& wifiConnected && isFileSaveOK));
 }
 
 float setPrecision(float val, byte precision){
 	return ((int)(val*(10*precision)))/(float)(precision*10);
+}
+
+void errorLed(bool flag){
+    digitalWrite(ERROR_PIN, flag);
+
 }

@@ -44,7 +44,7 @@
 		<link>
 			<name>libraries/ArduinoJson</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/libraries/ArduinoJson/6.2.3-beta</locationURI>
+			<locationURI>ECLIPSE_HOME/arduinoPlugin/libraries/ArduinoJson/6.5.0-beta</locationURI>
 		</link>
 		<link>
 			<name>libraries/ArduinoThread</name>
