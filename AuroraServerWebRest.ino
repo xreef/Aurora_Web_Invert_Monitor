@@ -21,7 +21,7 @@
 #include <EMailSender.h>
 
 // Uncomment to enable server ftp.
-#define SERVER_FTP
+//#define SERVER_FTP
 //#define SERVER_HTTPS
 #define HARDWARE_SERIAL
 
@@ -71,7 +71,7 @@ char hostname[] = "InverterCentraline";
 #define INVERTER_COMMUNICATION_CONTROL_PIN D0
 // Inverte inizialization
 #ifdef HARDWARE_SERIAL
-Aurora inverter = Aurora(2, Serial, INVERTER_COMMUNICATION_CONTROL_PIN);
+Aurora inverter = Aurora(2, &Serial, INVERTER_COMMUNICATION_CONTROL_PIN);
 #else
 Aurora inverter = Aurora(2, D2, D3, INVERTER_COMMUNICATION_CONTROL_PIN);
 #endif
@@ -172,11 +172,11 @@ bool wifiConnected = false;
 
 float setPrecision(float val, byte precision);
 
-#define DSP_GRID_POWER_ALL_FILENAME									"power.jso"		/* Global */
-#define DSP_GRID_CURRENT_ALL_FILENAME								"current.jso"
-#define DSP_GRID_VOLTAGE_ALL_FILENAME								"voltage.jso"
+#define DSP_GRID_POWER_ALL_FILENAME									F("power.jso")		/* Global */
+#define DSP_GRID_CURRENT_ALL_FILENAME								F("current.jso")
+#define DSP_GRID_VOLTAGE_ALL_FILENAME								F("voltage.jso")
 
-EMailSender emailSend("smtp.mischianti@gmail.com", "cicciolo77.");
+EMailSender emailSend("smtp", "pwd");
 
 #ifdef SERVER_FTP
 FtpServer ftpSrv;   //set #define FTP_DEBUG in ESP8266FtpServer.h to see ftp verbose on serial
@@ -219,7 +219,7 @@ void setup() {
 //		      Serial1.write(configFile.read());
 //		    }
 //
-	    DEBUG_PRINTLN("done.");
+		DEBUG_PRINTLN(F("done."));
 		DynamicJsonDocument doc;
 		DeserializationError error = deserializeJson(doc, configFile);
 		// close the file:
@@ -232,13 +232,13 @@ void setup() {
 
 		}else{
 			JsonObject rootObj = doc.as<JsonObject>();
-			JsonObject preferences = rootObj["preferences"];
-			bool isGTM = preferences.containsKey("GTM");
+			JsonObject preferences = rootObj[F("preferences")];
+			bool isGTM = preferences.containsKey(F("GTM"));
 			if (isGTM){
-				JsonObject GTM = preferences["GTM"];
-				bool isValue = GTM.containsKey("value");
+				JsonObject GTM = preferences[F("GTM")];
+				bool isValue = GTM.containsKey(F("value"));
 				if (isValue){
-					int value = GTM["value"];
+					int value = GTM[F("value")];
 
 					DEBUG_PRINT(F("Impostazione GTM+"))
 					DEBUG_PRINTLN(value)
@@ -248,17 +248,17 @@ void setup() {
 				}
 			}
 
-			JsonObject serverConfig = rootObj["server"];
-			bool isStatic = serverConfig["isStatic"];
+			JsonObject serverConfig = rootObj[F("server")];
+			bool isStatic = serverConfig[F("isStatic")];
 			if (isStatic==true){
-				const char* address = serverConfig["address"];
-				const char* gatway = serverConfig["gatway"];
-				const char* netMask = serverConfig["netMask"];
+				const char* address = serverConfig[F("address")];
+				const char* gatway = serverConfig[F("gatway")];
+				const char* netMask = serverConfig[F("netMask")];
 
-				const char* dns1 = serverConfig["dns1"];
-				const char* dns2 = serverConfig["dns2"];
+				const char* dns1 = serverConfig[F("dns1")];
+				const char* dns2 = serverConfig[F("dns2")];
 
-				const char* _hostname = serverConfig["hostname"];
+				const char* _hostname = serverConfig[F("hostname")];
 				//start-block2
 				IPAddress _ip;
 				bool parseSuccess;
@@ -295,6 +295,8 @@ void setup() {
 					}
 					//end-block2
 				}
+
+				DEBUG_PRINT(F("Set static data..."));
 				if (isDNS){
 					wifiManager.setSTAStaticIPConfig(_ip, _gw, _sn, _dns1, _dns2);
 				}else{
@@ -307,14 +309,16 @@ void setup() {
 				// IPAddress(85, 37, 17, 12), IPAddress(8, 8, 8, 8)
 	//
 	//		    emailSend.setEMailLogin("smtp.mischianti@gmail.com");
+				DEBUG_PRINTLN(F("done."));
 			}
 		}
 	}else{
-	    DEBUG_PRINTLN(F("fail."));
+		DEBUG_PRINTLN(F("fail."));
 	}
 
-    //reset saved settings
-//    wifiManager.resetSettings();
+	//reset saved settings
+//	wifiManager.resetSettings();
+
 
     //set custom ip for portal
     //wifiManager.setAPStaticIPConfig(IPAddress(10,0,1,1), IPAddress(10,0,1,1), IPAddress(255,255,255,0));
@@ -346,15 +350,15 @@ void setup() {
 
 
 	DEBUG_PRINT(F("Recreate settings file..."));
-	fs::File settingsFile = SPIFFS.open("/settings.json", "w");
+	fs::File settingsFile = SPIFFS.open(F("/settings.json"), "w");
 	if (!settingsFile) {
-	    DEBUG_PRINTLN("fail.");
+	    DEBUG_PRINTLN(F("fail."));
 	}else{
-		DEBUG_PRINTLN("done.");
+		DEBUG_PRINTLN(F("done."));
 		DynamicJsonDocument doc;
 		JsonObject postObj = doc.to<JsonObject>();
-		postObj["localIP"] = WiFi.localIP().toString();
-		postObj["localRestPort"] = HTTP_REST_PORT;
+		postObj[F("localIP")] = WiFi.localIP().toString();
+		postObj[F("localRestPort")] = HTTP_REST_PORT;
 
 		String buf;
 		serializeJson(postObj, buf);
@@ -366,7 +370,7 @@ void setup() {
 		settingsFile.close();
 
 //		serializeJson(doc, settingsFile);
-	    DEBUG_PRINTLN("success.");
+	    DEBUG_PRINTLN(F("success."));
 	}
 
 	// Start inverter serial
@@ -439,14 +443,14 @@ void setup() {
     DEBUG_PRINT(hostname);
     DEBUG_PRINTLN(F(" --> mDNS responder started"));
 
-    DEBUG_PRINT("ERROR --> ");
+    DEBUG_PRINT(F("ERROR --> "));
     DEBUG_PRINTLN(!(fixedTime && sdStarted&& wifiConnected));
 
 	errorLed(!(fixedTime && sdStarted&& wifiConnected && isFileSaveOK));
 
 //    digitalWrite(ERROR_PIN, !(fixedTime && sdStarted&& wifiConnected && isFileSaveOK));
 
-    DEBUG_PRINTLN("FIRST LOAD...")
+    DEBUG_PRINTLN(F("FIRST LOAD..."))
     leggiStatoInverterCallback();
     manageStaticDataCallback();
     leggiProduzioneCallback();
@@ -500,29 +504,29 @@ void leggiStatoInverterCallback() {
 
 		DEBUG_PRINT(F("Create json..."));
 
-		String scopeDirectory = "alarms";
+		String scopeDirectory = F("alarms");
 		if (!SD.exists(scopeDirectory)) {
 			SD.mkdir(scopeDirectory);
 		}
 
-		String filename = scopeDirectory + "/alarStat.jso";
+		String filename = scopeDirectory + F("/alarStat.jso");
 
 		DynamicJsonDocument doc;
 		JsonObject rootObj = doc.to<JsonObject>();
 
-		rootObj["lastUpdate"] = getEpochStringByParams(now());
+		rootObj[F("lastUpdate")] = getEpochStringByParams(now());
 
-		rootObj["alarmStateParam"] = dataState.alarmState;
-		rootObj["alarmState"] = dataState.getAlarmState();
+		rootObj[F("alarmStateParam")] = dataState.alarmState;
+		rootObj[F("alarmState")] = dataState.getAlarmState();
 
-		rootObj["channel1StateParam"] = dataState.channel1State;
-		rootObj["channel1State"] = dataState.getDcDcChannel1State();
+		rootObj[F("channel1StateParam")] = dataState.channel1State;
+		rootObj[F("channel1State")] = dataState.getDcDcChannel1State();
 
-		rootObj["channel2StateParam"] = dataState.channel2State;
-		rootObj["channel2State"] = dataState.getDcDcChannel2State();
+		rootObj[F("channel2StateParam")] = dataState.channel2State;
+		rootObj[F("channel2State")] = dataState.getDcDcChannel2State();
 
-		rootObj["inverterStateParam"] = dataState.inverterState;
-		rootObj["inverterState"] = dataState.getInverterState();
+		rootObj[F("inverterStateParam")] = dataState.inverterState;
+		rootObj[F("inverterState")] = dataState.getInverterState();
 
 		DEBUG_PRINTLN(F("done."));
 
@@ -533,20 +537,20 @@ void leggiStatoInverterCallback() {
 
 		String dayDirectory = getEpochStringByParams(now(), (char*) "%Y%m%d");
 
-		String filenameAL = scopeDirectory + '/' + dayDirectory + "/alarms.jso";
+		String filenameAL = scopeDirectory + '/' + dayDirectory + F("/alarms.jso");
 
 		DynamicJsonDocument docAS;
 		JsonObject obj;
 
 		obj = getJSonFromFile(&docAS, filenameAL);
 
-		obj["lastUpdate"] = getEpochStringByParams(now());
+		obj[F("lastUpdate")] = getEpochStringByParams(now());
 
 		JsonArray data;
-		if (!obj.containsKey("data")) {
-			data = obj.createNestedArray("data");
+		if (!obj.containsKey(F("data"))) {
+			data = obj.createNestedArray(F("data"));
 		} else {
-			data = obj["data"];
+			data = obj[F("data")];
 		}
 
 		bool inverterProblem = dataState.alarmState > 0 || (dataState.inverterState != 2 && dataState.inverterState != 1);
@@ -560,12 +564,12 @@ void leggiStatoInverterCallback() {
 			}
 
 			bool variationFromPrevious = (data.size() > 0
-					&& (lastData["asp"] != dataState.alarmState
-							|| lastData["c1sp"] != dataState.channel1State
-							|| lastData["c2sp"] != dataState.channel2State
-							|| lastData["isp"] != dataState.inverterState));
+					&& (lastData[F("asp")] != dataState.alarmState
+							|| lastData[F("c1sp")] != dataState.channel1State
+							|| lastData[F("c2sp")] != dataState.channel2State
+							|| lastData[F("isp")] != dataState.inverterState));
 
-			byte ldState = lastData["isp"];
+			byte ldState = lastData[F("isp")];
 
 			DEBUG_PRINT(F("Last data state --> "));
 			DEBUG_PRINTLN(ldState);
@@ -574,7 +578,7 @@ void leggiStatoInverterCallback() {
 			DEBUG_PRINTLN(dataState.inverterState);
 
 			DEBUG_PRINT(F("Last data vs data state is different --> "));
-			DEBUG_PRINTLN(lastData["isp"] != dataState.inverterState);
+			DEBUG_PRINTLN(lastData[F("isp")] != dataState.inverterState);
 
 
 			DEBUG_PRINT(F("Inverter problem --> "));
@@ -593,19 +597,19 @@ void leggiStatoInverterCallback() {
 
 				JsonObject objArrayData = data.createNestedObject();
 
-				objArrayData["h"] = getEpochStringByParams(now(),
+				objArrayData[F("h")] = getEpochStringByParams(now(),
 						(char*) "%H%M");
 
-				objArrayData["asp"] = dataState.alarmState;
-				//			objArrayData["as"] = dataState.getAlarmState();
+				objArrayData[F("asp")] = dataState.alarmState;
+				//			objArrayData[F("as")] = dataState.getAlarmState();
 
-				objArrayData["c1sp"] = dataState.channel1State;
-				//			objArrayData["c1s"] = dataState.getDcDcChannel1State();
+				objArrayData[F("c1sp")] = dataState.channel1State;
+				//			objArrayData[F("c1s")] = dataState.getDcDcChannel1State();
 
-				objArrayData["c2sp"] = dataState.channel2State;
-				//			objArrayData["c2s"] = dataState.getDcDcChannel2State();
+				objArrayData[F("c2sp")] = dataState.channel2State;
+				//			objArrayData[F("c2s")] = dataState.getDcDcChannel2State();
 
-				objArrayData["isp"] = dataState.inverterState;
+				objArrayData[F("isp")] = dataState.inverterState;
 				//			objArrayData["is"] = dataState.getInverterState();
 
 				DEBUG_PRINTLN(F("Store alarms --> "));
@@ -622,7 +626,7 @@ void leggiStatoInverterCallback() {
 				DEBUG_PRINT(F("Open config file..."));
 				fs::File configFile = SPIFFS.open(F("/mc/config.txt"), "r");
 				if (configFile) {
-				    DEBUG_PRINTLN("done.");
+				    DEBUG_PRINTLN(F("done."));
 					DynamicJsonDocument doc;
 					DeserializationError error = deserializeJson(doc, configFile);
 					if (error) {
@@ -637,92 +641,92 @@ void leggiStatoInverterCallback() {
 					JsonObject rootObj = doc.as<JsonObject>();
 
 				    DEBUG_PRINT(F("After read config check serverSMTP and emailNotification "));
-				    DEBUG_PRINTLN(rootObj.containsKey("serverSMTP") && rootObj.containsKey("emailNotification"));
+				    DEBUG_PRINTLN(rootObj.containsKey(F("serverSMTP")) && rootObj.containsKey(F("emailNotification")));
 
-					if (rootObj.containsKey("serverSMTP") && rootObj.containsKey("emailNotification")){
+					if (rootObj.containsKey(F("serverSMTP")) && rootObj.containsKey(F("emailNotification"))){
 //						JsonObject serverConfig = rootObj["server"];
-						JsonObject serverSMTP = rootObj["serverSMTP"];
-						JsonObject emailNotification = rootObj["emailNotification"];
+						JsonObject serverSMTP = rootObj[F("serverSMTP")];
+						JsonObject emailNotification = rootObj[F("emailNotification")];
 
-						bool isNotificationEnabled = (emailNotification.containsKey("isNotificationEnabled"))?emailNotification["isNotificationEnabled"]:false;
+						bool isNotificationEnabled = (emailNotification.containsKey(F("isNotificationEnabled")))?emailNotification[F("isNotificationEnabled")]:false;
 
 					    DEBUG_PRINT(F("isNotificationEnabled "));
 					    DEBUG_PRINTLN(isNotificationEnabled);
 
 						if (isNotificationEnabled){
-							const char* serverSMTPAddr = serverSMTP["server"];
+							const char* serverSMTPAddr = serverSMTP[F("server")];
 							emailSend.setSMTPServer(serverSMTPAddr);
-							uint16_t portSMTP = serverSMTP["port"];
+							uint16_t portSMTP = serverSMTP[F("port")];
 							emailSend.setSMTPPort(portSMTP);
-							const char* loginSMTP = serverSMTP["login"];
+							const char* loginSMTP = serverSMTP[F("login")];
 							emailSend.setEMailLogin(loginSMTP);
-							const char* passwordSMTP = serverSMTP["password"];
+							const char* passwordSMTP = serverSMTP[F("password")];
 							emailSend.setEMailPassword(passwordSMTP);
-							const char* fromSMTP = serverSMTP["from"];
+							const char* fromSMTP = serverSMTP[F("from")];
 							emailSend.setEMailFrom(fromSMTP);
 
-							DEBUG_PRINT("server ");
+							DEBUG_PRINT(F("server "));
 							DEBUG_PRINTLN(serverSMTPAddr);
-							DEBUG_PRINT("port ");
+							DEBUG_PRINT(F("port "));
 							DEBUG_PRINTLN(portSMTP);
-							DEBUG_PRINT("login ");
+							DEBUG_PRINT(F("login "));
 							DEBUG_PRINTLN(loginSMTP);
-							DEBUG_PRINT("password ");
+							DEBUG_PRINT(F("password "));
 							DEBUG_PRINTLN(passwordSMTP);
-							DEBUG_PRINT("from ");
+							DEBUG_PRINT(F("from "));
 							DEBUG_PRINTLN(fromSMTP);
 
 							EMailSender::EMailMessage message;
-							const String sub = emailNotification["subject"];
+							const String sub = emailNotification[F("subject")];
 							message.subject = sub;
 
-							JsonArray emailList = emailNotification["emailList"];
+							JsonArray emailList = emailNotification[F("emailList")];
 
 						    DEBUG_PRINT(F("Email list "));
 
 							for (uint8_t i=0; i<emailList.size(); i++){
 								JsonObject emailElem = emailList[i];
 
-								byte asp = lastData["asp"];
-								byte c1sp = lastData["c1sp"];
-								byte c2sp = lastData["c2sp"];
-								byte isp = lastData["isp"];
+								byte asp = lastData[F("asp")];
+								byte c1sp = lastData[F("c1sp")];
+								byte c2sp = lastData[F("c2sp")];
+								byte isp = lastData[F("isp")];
 
-								const String alarm = emailElem["alarm"];
-								const String ch1 = emailElem["ch1"];
-								const String ch2 = emailElem["ch2"];
-								const String state = emailElem["state"];
+								const String alarm = emailElem[F("alarm")];
+								const String ch1 = emailElem[F("ch1")];
+								const String ch2 = emailElem[F("ch2")];
+								const String state = emailElem[F("state")];
 
 							    DEBUG_PRINT(F("State value "));
 							    DEBUG_PRINTLN(state);
 
 							    DEBUG_PRINT(F("State value on_problem comparison "));
-							    DEBUG_PRINTLN(state=="on_problem");
+							    DEBUG_PRINTLN(state==F("on_problem"));
 
 							    DEBUG_PRINT(F("Alarm value "));
 							    DEBUG_PRINTLN(alarm);
 
 							    DEBUG_PRINT(F("Alarm all comparison "));
-							    DEBUG_PRINTLN(alarm=="all");
+							    DEBUG_PRINTLN(alarm==F("all"));
 
 								bool allNotification = (
-										(alarm=="all" && asp != dataState.alarmState)
+										(alarm==F("all") && asp != dataState.alarmState)
 										||
-										(ch1=="all" && c1sp != dataState.channel1State)
+										(ch1==F("all") && c1sp != dataState.channel1State)
 										||
-										(ch2=="all" && c2sp != dataState.channel2State)
+										(ch2==F("all") && c2sp != dataState.channel2State)
 										||
-										(state=="all" && isp != dataState.inverterState)
+										(state==F("all") && isp != dataState.inverterState)
 								);
 
 								bool onProblem = (
-										(alarm=="on_problem" && dataState.alarmState > 0)
+										(alarm==F("on_problem") && dataState.alarmState > 0)
 										||
-										(ch1=="on_problem" && dataState.channel1State != 2)
+										(ch1==F("on_problem") && dataState.channel1State != 2)
 										||
-										(ch2=="on_problem" && dataState.channel1State != 2)
+										(ch2==F("on_problem") && dataState.channel1State != 2)
 										||
-										(state=="on_problem" && (dataState.inverterState != 2 && dataState.inverterState != 1))
+										(state==F("on_problem") && (dataState.inverterState != 2 && dataState.inverterState != 1))
 								);
 
 							    DEBUG_PRINT(F("Check allNotification "));
@@ -737,18 +741,18 @@ void leggiStatoInverterCallback() {
 										||
 										onProblem
 								){
-									const String mp = emailNotification["messageProblem"];
-									const String mnp = emailNotification["messageNoProblem"];
+									const String mp = emailNotification[F("messageProblem")];
+									const String mnp = emailNotification[F("messageNoProblem")];
 									message.message = ((inverterProblem)?mp:mnp)+
 													F("<br>Alarm: ")+dataState.getAlarmState()+
 													F("<br>CH1: ")+dataState.getDcDcChannel1State() +
 													F("<br>CH2: ")+dataState.getDcDcChannel2State()+
 													F("<br>Stato: ")+dataState.getInverterState();
 
-									EMailSender::Response resp = emailSend.send(emailElem["email"], message);
+									EMailSender::Response resp = emailSend.send(emailElem[F("email")], message);
 
 									DEBUG_PRINTLN(F("Sending status: "));
-									const String em = emailElem["email"];
+									const String em = emailElem[F("email")];
 									DEBUG_PRINTLN(em);
 									DEBUG_PRINTLN(resp.status);
 									DEBUG_PRINTLN(resp.code);
@@ -806,43 +810,43 @@ void manageStaticDataCallback () {
 
     	DEBUG_PRINT(F("Create json..."));
 
-		String scopeDirectory = "static";
+		String scopeDirectory = F("static");
 		if (!SD.exists(scopeDirectory)){
 			SD.mkdir(scopeDirectory);
 		}
 
-		String filename = scopeDirectory+"/invinfo.jso";
+		String filename = scopeDirectory+ F("/invinfo.jso");
 
 		DynamicJsonDocument doc;
 		JsonObject rootObj = doc.to<JsonObject>();
 
-		rootObj["lastUpdate"] = getEpochStringByParams(now());
+		rootObj[F("lastUpdate")] = getEpochStringByParams(now());
 
-		rootObj["modelNameParam"] = dataVersion.par1;
-		rootObj["modelName"] = dataVersion.getModelName().name;
-		rootObj["modelNameIndoorOutdoorType"] = dataVersion.getIndoorOutdoorAndType();
+		rootObj[F("modelNameParam")] = dataVersion.par1;
+		rootObj[F("modelName")] = dataVersion.getModelName().name;
+		rootObj[F("modelNameIndoorOutdoorType")] = dataVersion.getIndoorOutdoorAndType();
 
-		rootObj["gridStandardParam"] = dataVersion.par2;
-		rootObj["gridStandard"] = dataVersion.getGridStandard();
+		rootObj[F("gridStandardParam")] = dataVersion.par2;
+		rootObj[F("gridStandard")] = dataVersion.getGridStandard();
 
-		rootObj["trasformerLessParam"] = dataVersion.par3;
-		rootObj["trasformerLess"] = dataVersion.getTrafoOrNonTrafo();
+		rootObj[F("trasformerLessParam")] = dataVersion.par3;
+		rootObj[F("trasformerLess")] = dataVersion.getTrafoOrNonTrafo();
 
-		rootObj["windOrPVParam"] = dataVersion.par4;
-		rootObj["windOrPV"] = dataVersion.getWindOrPV();
+		rootObj[F("windOrPVParam")] = dataVersion.par4;
+		rootObj[F("windOrPV")] = dataVersion.getWindOrPV();
 
-		rootObj["firmwareRelease"] = firmwareRelease.release;
-		rootObj["systemSN"] = systemSN.SerialNumber;
+		rootObj[F("firmwareRelease")] = firmwareRelease.release;
+		rootObj[F("systemSN")] = systemSN.SerialNumber;
 
-		rootObj["systemPN"] = systemPN.PN;
+		rootObj[F("systemPN")] = systemPN.PN;
 
-		JsonObject mWY = rootObj.createNestedObject("manufactory");
-		mWY["Year"] = manufactoryWeekYear.Year;
-		mWY["Week"] = manufactoryWeekYear.Week;
+		JsonObject mWY = rootObj.createNestedObject(F("manufactory"));
+		mWY[F("Year")] = manufactoryWeekYear.Year;
+		mWY[F("Week")] = manufactoryWeekYear.Week;
 
-		JsonObject cs = rootObj.createNestedObject("configStatus");
-		cs["code"] = configStatus.configStatus;
-		cs["desc"] = configStatus.getConfigStatus();
+		JsonObject cs = rootObj.createNestedObject(F("configStatus"));
+		cs[F("code")] = configStatus.configStatus;
+		cs[F("desc")] = configStatus.getConfigStatus();
 
 		DEBUG_PRINTLN(F("done."));
 
@@ -852,7 +856,7 @@ void manageStaticDataCallback () {
 }
 
 void cumulatedEnergyDaily(tm nowDt){
-	String scopeDirectory = "monthly";
+	String scopeDirectory = F("monthly");
 	// Save cumulative data
 	if (nowDt.tm_min % CUMULATIVE_INTERVAL == 0) {
 		Aurora::DataCumulatedEnergy dce = inverter.readCumulatedEnergy(
@@ -873,7 +877,7 @@ void cumulatedEnergyDaily(tm nowDt){
 			if (energy && energy > 0) {
 				String filename = scopeDirectory + "/"
 						+ getEpochStringByParams(now(), (char*) "%Y%m")
-						+ ".jso";
+						+ F(".jso");
 				String tagName = getEpochStringByParams(now(), (char*) "%d");
 
 				DynamicJsonDocument doc;
@@ -881,18 +885,18 @@ void cumulatedEnergyDaily(tm nowDt){
 
 				obj = getJSonFromFile(&doc, filename);
 
-				obj["lastUpdate"] = getEpochStringByParams(now());
+				obj[F("lastUpdate")] = getEpochStringByParams(now());
 
 				JsonObject series;
-				if (!obj.containsKey("series")) {
-					series = obj.createNestedObject("series");
+				if (!obj.containsKey(F("series"))) {
+					series = obj.createNestedObject(F("series"));
 				} else {
-					series = obj["series"];
+					series = obj[F("series")];
 				}
 
 				JsonObject dayData = series.createNestedObject(tagName);
-				dayData["pow"] = energy;
-				dayData["powPeak"] = setPrecision(powerPeak, 1);
+				dayData[F("pow")] = energy;
+				dayData[F("powPeak")] = setPrecision(powerPeak, 1);
 
 				DEBUG_PRINT(F("Store cumulated energy --> "));
 //				serializeJson(doc, Serial);
@@ -907,7 +911,7 @@ void cumulatedEnergyDaily(tm nowDt){
 }
 
 void readTotals(tm nowDt){
-	String scopeDirectory = "states";
+	String scopeDirectory = F("states");
 	// Save cumulative data
 	if (nowDt.tm_min % CUMULATIVE_TOTAL_INTERVAL == 0) {
 
@@ -940,23 +944,33 @@ void readTotals(tm nowDt){
 				SD.mkdir(scopeDirectory);
 			}
 			if (dce.state.readState == 1 && energyLifetime) {
-				String filename = scopeDirectory + "/lastStat.jso";
+				String filename = scopeDirectory + F("/lastStat.jso");
 				String tagName = getEpochStringByParams(now(), (char*) "%d");
 
 				DynamicJsonDocument doc;
 				JsonObject obj = doc.to<JsonObject>();;
 
-				obj["lastUpdate"] = getEpochStringByParams(now());
+				obj[F("lastUpdate")] = getEpochStringByParams(now());
 
-				obj["energyLifetime"] = energyLifetime;
-				obj["energyYearly"] = energyYearly;
-				obj["energyMonthly"] = energyMonthly;
-				obj["energyWeekly"] = energyWeekly;
-				obj["energyDaily"] = energyDaily;
+				if (energyLifetime>0){
+					obj[F("energyLifetime")] = energyLifetime;
+				}
+				if (energyYearly>0){
+					obj[F("energyYearly")] = energyYearly;
+				}
+				if (energyMonthly>0){
+					obj[F("energyMonthly")] = energyMonthly;
+				}
+				if (energyWeekly>0){
+					obj[F("energyWeekly")] = energyWeekly;
+				}
+				if (energyDaily>0){
+					obj[F("energyDaily")] = energyDaily;
+				}
 
-				obj["W"] = getEpochStringByParams(now(), (char*) "%Y%W");
-				obj["M"] = getEpochStringByParams(now(), (char*) "%Y%m");
-				obj["Y"] = getEpochStringByParams(now(), (char*) "%Y");
+				obj[F("W")] = getEpochStringByParams(now(), (char*) "%Y%W");
+				obj[F("M")] = getEpochStringByParams(now(), (char*) "%Y%m");
+				obj[F("Y")] = getEpochStringByParams(now(), (char*) "%Y");
 
 				DEBUG_PRINT(F("Store energyLifetime energy --> "));
 				//				serializeJson(doc, Serial);
@@ -969,12 +983,12 @@ void readTotals(tm nowDt){
 					DynamicJsonDocument docW;
 					JsonObject objW;
 
-					String dir = scopeDirectory + "/weeks";
+					String dir = scopeDirectory + F("/weeks");
 					if (!SD.exists(dir)) {
 						SD.mkdir(dir);
 					}
 
-					String filenamew = dir +'/'+getEpochStringByParams(now(), (char*) "%Y")+ ".jso";
+					String filenamew = dir +'/'+getEpochStringByParams(now(), (char*) "%Y")+ F(".jso");
 
 					objW = getJSonFromFile(&docW, filenamew);
 					objW[getEpochStringByParams(now(), (char*) "%Y%W")] = energyWeekly;
@@ -985,12 +999,12 @@ void readTotals(tm nowDt){
 					DynamicJsonDocument docM;
 					JsonObject objM;
 
-					String dir = scopeDirectory + "/months";
+					String dir = scopeDirectory + F("/months");
 					if (!SD.exists(dir)) {
 						SD.mkdir(dir);
 					}
 
-					String filenamem = dir +'/'+getEpochStringByParams(now(), (char*) "%Y")+ ".jso";
+					String filenamem = dir +'/'+getEpochStringByParams(now(), (char*) "%Y")+ F(".jso");
 
 					objM = getJSonFromFile(&docM, filenamem);
 
@@ -1002,7 +1016,7 @@ void readTotals(tm nowDt){
 					DynamicJsonDocument docY;
 					JsonObject objY;
 
-					String filenamey = scopeDirectory + "/years.jso";
+					String filenamey = scopeDirectory + F("/years.jso");
 
 					objY = getJSonFromFile(&docY, filenamey);
 
@@ -1018,7 +1032,7 @@ void readTotals(tm nowDt){
 }
 
 void readProductionDaily(tm nowDt){
-	String scopeDirectory = "product";
+	String scopeDirectory = F("product");
 	if (!SD.exists(scopeDirectory)) {
 		SD.mkdir(scopeDirectory);
 	}
@@ -1062,19 +1076,19 @@ void readProductionDaily(tm nowDt){
 
 					obj = getJSonFromFile(&doc, filenameDir);
 
-					obj["lastUpdate"] = getEpochStringByParams(now());
+					obj[F("lastUpdate")] = getEpochStringByParams(now());
 
 					JsonArray data;
-					if (!obj.containsKey("data")) {
-						data = obj.createNestedArray("data");
+					if (!obj.containsKey(F("data"))) {
+						data = obj.createNestedArray(F("data"));
 					} else {
 						data = obj["data"];
 					}
 
 					JsonObject objArrayData = data.createNestedObject();
-					objArrayData["h"] = getEpochStringByParams(now(),
+					objArrayData[F("h")] = getEpochStringByParams(now(),
 							(char*) "%H%M");
-					objArrayData["val"] = setPrecision(val, 1);
+					objArrayData[F("val")] = setPrecision(val, 1);
 					DEBUG_PRINTLN(F("Store production --> "));
 					DEBUG_PRINT(doc.memoryUsage());
 					DEBUG_PRINTLN();
@@ -1171,7 +1185,7 @@ bool saveJSonToAFile(DynamicJsonDocument *doc, String filename) {
 
 void setCrossOrigin(){
 	httpRestServer.sendHeader(F("Access-Control-Allow-Origin"), F("*"));
-	httpRestServer.sendHeader(F("Access-Control-Max-Age"), F("10000"));
+	httpRestServer.sendHeader(F("Access-Control-Max-Age"), F("600"));
 	httpRestServer.sendHeader(F("Access-Control-Allow-Methods"), F("PUT,POST,GET,OPTIONS"));
 	httpRestServer.sendHeader(F("Access-Control-Allow-Headers"), F("*"));
 };
@@ -1203,31 +1217,32 @@ void streamFileOnRest(String filename){
 	}
 }
 String getContentType(String filename){
-  if(filename.endsWith(".htm")) 		return F("text/html");
-  else if(filename.endsWith(".html")) 	return F("text/html");
-  else if(filename.endsWith(".css")) 	return F("text/css");
-  else if(filename.endsWith(".js")) 	return F("application/javascript");
-  else if(filename.endsWith(".json")) 	return F("application/json");
-  else if(filename.endsWith(".png")) 	return F("image/png");
-  else if(filename.endsWith(".gif")) 	return F("image/gif");
-  else if(filename.endsWith(".jpg")) 	return F("image/jpeg");
-  else if(filename.endsWith(".ico")) 	return F("image/x-icon");
-  else if(filename.endsWith(".xml")) 	return F("text/xml");
-  else if(filename.endsWith(".pdf")) 	return F("application/x-pdf");
-  else if(filename.endsWith(".zip")) 	return F("application/x-zip");
-  else if(filename.endsWith(".gz")) 	return F("application/x-gzip");
+  if(filename.endsWith(F(".htm"))) 		return F("text/html");
+  else if(filename.endsWith(F(".html"))) 	return F("text/html");
+  else if(filename.endsWith(F(".css"))) 	return F("text/css");
+  else if(filename.endsWith(F(".js"))) 	return F("application/javascript");
+  else if(filename.endsWith(F(".json"))) 	return F("application/json");
+  else if(filename.endsWith(F(".png"))) 	return F("image/png");
+  else if(filename.endsWith(F(".gif"))) 	return F("image/gif");
+  else if(filename.endsWith(F(".jpg"))) 	return F("image/jpeg");
+  else if(filename.endsWith(F(".ico"))) 	return F("image/x-icon");
+  else if(filename.endsWith(F(".xml"))) 	return F("text/xml");
+  else if(filename.endsWith(F(".pdf"))) 	return F("application/x-pdf");
+  else if(filename.endsWith(F(".zip"))) 	return F("application/x-zip");
+  else if(filename.endsWith(F(".gz"))) 	return F("application/x-gzip");
   return F("text/plain");
 }
 
 bool handleFileRead(String path){  // send the right file to the client (if it exists)
   DEBUG_PRINT(F("handleFileRead: "));
   DEBUG_PRINTLN(path);
-  if(path.endsWith("/")) path += "index.html";           // If a folder is requested, send the index file
+
+  if(path.endsWith("/")) path += F("index.html");           // If a folder is requested, send the index file
   String contentType = getContentType(path);             // Get the MIME type
-  String pathWithGz = path + ".gz";
+  String pathWithGz = path + F(".gz");
   if(SPIFFS.exists(pathWithGz) || SPIFFS.exists(path)){  // If the file exists, either as a compressed archive, or normal
     if(SPIFFS.exists(pathWithGz))                          // If there's a compressed version available
-      path += ".gz";                                         // Use the compressed version
+      path += F(".gz");                                         // Use the compressed version
     fs::File file = SPIFFS.open(path, "r");                    // Open the file
     size_t sent = httpServer.streamFile(file, contentType);    // Send it to the client
     file.close();                                          // Close the file again
@@ -1267,12 +1282,12 @@ void getProduction(){
 
 	setCrossOrigin();
 
-	if (httpRestServer.arg("day")== "" || httpRestServer.arg("type")== "" ){     //Parameter not found
+	if (httpRestServer.arg(F("day"))== "" || httpRestServer.arg(F("type"))== "" ){     //Parameter not found
 		httpRestServer.send(400, F("text/html"), F("Missing required parameter!"));
 		DEBUG_PRINTLN(F("No parameter"));
 	}else{     //Parameter found
 		DEBUG_PRINT(F("Read file: "));
-		String filename = "product/"+httpRestServer.arg("day")+"/"+httpRestServer.arg("type")+".jso";
+		String filename = "product/"+httpRestServer.arg(F("day"))+"/"+httpRestServer.arg(F("type"))+".jso";
 
 		DEBUG_PRINTLN(filename);
 
@@ -1287,8 +1302,8 @@ void getProductionTotal(){
 
 
 	DEBUG_PRINT(F("Read file: "));
-	String scopeDirectory = "states";
-	String filename =  scopeDirectory+"/lastStat.jso";
+	String scopeDirectory = F("states");
+	String filename =  scopeDirectory+F("/lastStat.jso");
 
 
 	DEBUG_PRINTLN(filename);
@@ -1301,18 +1316,20 @@ void getMontlyValue(){
 	DEBUG_PRINTLN(F("getMontlyValue"));
 
 	setCrossOrigin();
-	String scopeDirectory = "monthly";
+	String scopeDirectory = F("monthly");
 
 	if (httpRestServer.arg("month")== ""){     //Parameter not found
 		httpRestServer.send(400, F("text/html"), F("Missing required parameter!"));
 		DEBUG_PRINTLN(F("No parameter"));
 	}else{     //Parameter found
 		DEBUG_PRINT(F("Read file: "));
-		String filename = scopeDirectory+'/'+httpRestServer.arg("month")+".jso";
+		String filename = scopeDirectory+'/'+httpRestServer.arg(F("month"))+F(".jso");
 		streamFileOnRest(filename);
 	}
 }
 
+
+// ARRIVATO QUI
 void getHistoricalValue(){
 	DEBUG_PRINTLN(F("getHistoricalValue"));
 
@@ -1594,6 +1611,11 @@ void serverRouting() {
 	    	httpServer.send(404, "text/plain", "404: Not Found"); // otherwise, respond with a 404 (Not Found) error
 	    }
 	  });
+
+	  DEBUG_PRINTLN(F("Set cache!"));
+
+	  httpServer.serveStatic("/settings.json", SPIFFS, "/settings.json","no-cache, no-store, must-revalidate");
+	  httpServer.serveStatic("/", SPIFFS, "/","max-age=31536000");
 }
 
 
@@ -1639,7 +1661,98 @@ float setPrecision(float val, byte precision){
 	return ((int)(val*(10*precision)))/(float)(precision*10);
 }
 
-void errorLed(bool flag){
-    digitalWrite(ERROR_PIN, flag);
+uint8_t sdWrongReadNumber = 0;
+bool alreadySendNotification = false;
 
+void errorLed(bool flag){
+	if (flag){
+		sdWrongReadNumber++;
+	}else{
+		sdWrongReadNumber = 0;
+		alreadySendNotification = false;
+	}
+
+	digitalWrite(ERROR_PIN, flag);
+	if (!alreadySendNotification && sdWrongReadNumber>=10){
+		alreadySendNotification = true;
+    	DEBUG_PRINT(F("Open config file..."));
+		fs::File configFile = SPIFFS.open(F("/mc/config.txt"), "r");
+		if (configFile) {
+			DEBUG_PRINTLN("done.");
+			DynamicJsonDocument doc;
+			DeserializationError error = deserializeJson(doc, configFile);
+			if (error) {
+				// if the file didn't open, print an error:
+				DEBUG_PRINT(F("Error parsing JSON "));
+				DEBUG_PRINTLN(error);
+			}
+
+			// close the file:
+			configFile.close();
+
+			JsonObject rootObj = doc.as<JsonObject>();
+
+			DEBUG_PRINT(F("After read config check serverSMTP and preferences "));
+			DEBUG_PRINTLN(rootObj.containsKey("serverSMTP") && rootObj.containsKey("preferences"));
+
+			if (rootObj.containsKey("serverSMTP") && rootObj.containsKey("preferences")){
+				JsonObject serverSMTP = rootObj["serverSMTP"];
+				JsonObject preferences = rootObj["preferences"];
+
+				DEBUG_PRINT("(preferences.containsKey(adminEmail) && preferences[adminEmail]!="")");
+				DEBUG_PRINTLN((preferences.containsKey("adminEmail") && preferences["adminEmail"]!=""));
+
+				if (preferences.containsKey("adminEmail") && preferences["adminEmail"]!=""){
+					const char* serverSMTPAddr = serverSMTP["server"];
+					emailSend.setSMTPServer(serverSMTPAddr);
+					uint16_t portSMTP = serverSMTP["port"];
+					emailSend.setSMTPPort(portSMTP);
+					const char* loginSMTP = serverSMTP["login"];
+					emailSend.setEMailLogin(loginSMTP);
+					const char* passwordSMTP = serverSMTP["password"];
+					emailSend.setEMailPassword(passwordSMTP);
+					const char* fromSMTP = serverSMTP["from"];
+					emailSend.setEMailFrom(fromSMTP);
+
+					DEBUG_PRINT(F("server "));
+					DEBUG_PRINTLN(serverSMTPAddr);
+					DEBUG_PRINT(F("port "));
+					DEBUG_PRINTLN(portSMTP);
+					DEBUG_PRINT(F("login "));
+					DEBUG_PRINTLN(loginSMTP);
+					DEBUG_PRINT(F("password "));
+					DEBUG_PRINTLN(passwordSMTP);
+					DEBUG_PRINT(F("from "));
+					DEBUG_PRINTLN(fromSMTP);
+
+					EMailSender::EMailMessage message;
+					const String sub = F("Inverter error!");
+					message.subject = sub;
+
+					const String mp = F("Error on inverter centraline");
+					const String ft = (fixedTime)?F("OK"):F("NO");
+					const String sd = (sdStarted)?F("OK"):F("NO");
+					const String wc = (wifiConnected)?F("OK"):F("NO");
+					const String sf = (isFileSaveOK)?F("OK"):F("NO");
+
+					message.message = mp+
+									F("<br>Time fixed: ")+ft+
+									F("<br>SD Initialized: ")+sd+
+									F("<br>Wifi Connecter :P: ")+wc+
+									F("<br>Saving file ok: ")+sf+
+									F("<br>Wrong saving attempts: ")+sdWrongReadNumber
+									;
+
+					const char* emailToSend = preferences["adminEmail"];
+					EMailSender::Response resp = emailSend.send(emailToSend, message);
+
+					DEBUG_PRINTLN(F("Sending status: "));
+					DEBUG_PRINTLN(emailToSend);
+					DEBUG_PRINTLN(resp.status);
+					DEBUG_PRINTLN(resp.code);
+					DEBUG_PRINTLN(resp.desc);
+				}
+			}
+		}
+	}
 }
