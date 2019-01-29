@@ -20,6 +20,10 @@
 
 #include <EMailSender.h>
 
+// Battery voltage resistance
+#define BAT_RES_VALUE_GND 20.0
+#define BAT_RES_VALUE_VCC 10.0
+
 // Uncomment to enable server ftp.
 //#define SERVER_FTP
 //#define SERVER_HTTPS
@@ -56,9 +60,11 @@ char hostname[] = "InverterCentraline";
 #define CUMULATIVE_INTERVAL 10
 #define CUMULATIVE_TOTAL_INTERVAL 10
 #define STATE_INTERVAL 10
+#define BATTERY_INTERVAL 20
 #define STATIC_DATA_INTERVAL 6 * 60
 
 // SD
+#define SD_WRONG_WRITE_NUMBER_ALERT 10
 #define CS_PIN D8
 
 // LED
@@ -79,7 +85,9 @@ Aurora inverter = Aurora(2, D2, D3, INVERTER_COMMUNICATION_CONTROL_PIN);
 void manageStaticDataCallback ();
 void leggiProduzioneCallback();
 void leggiStatoInverterCallback();
+void leggiStatoBatteriaCallback();
 void updateLocalTimeWithNTPCallback();
+float getBatteryVoltage();
 
 bool isFileSaveOK = true;
 bool saveJSonToAFile(DynamicJsonDocument *doc, String filename);
@@ -90,6 +98,7 @@ void errorLed(bool flag);
 Thread ManageStaticData = Thread();
 
 Thread LeggiStatoInverter = Thread();
+Thread LeggiStatoBatteria = Thread();
 
 Thread LeggiProduzione = Thread();
 
@@ -380,7 +389,7 @@ void setup() {
 
 	// Start inizialization of SD cart
 	DEBUG_PRINT(F("Initializing SD card..."));
-	if (!SD.begin(CS_PIN, SPI_FULL_SPEED)) {
+	if (!SD.begin(CS_PIN, SPI_HALF_SPEED)) {
 		DEBUG_PRINTLN(F("initialization failed!"));
 		sdStarted = false;
 		// return to stop all
@@ -395,6 +404,10 @@ void setup() {
 	// Start thread, and set it every 1 minutes
 	LeggiStatoInverter.onRun(leggiStatoInverterCallback);
 	LeggiStatoInverter.setInterval(STATE_INTERVAL * 60 * 1000);
+
+	// Start thread, and set it every 60
+	LeggiStatoBatteria.onRun(leggiStatoBatteriaCallback);
+	LeggiStatoBatteria.setInterval(BATTERY_INTERVAL * 60 * 1000);
 
 	// Start thread, and set it every 1 minutes
 	LeggiProduzione.onRun(leggiProduzioneCallback);
@@ -438,7 +451,7 @@ void setup() {
 #endif
 
     if (!MDNS.begin(hostname)) {             // Start the mDNS responder for esp8266.local
-    	DEBUG_PRINTLN(F("Error setting up MDNS responder!"));
+    	DEBUG_PRINTLN(F("Error setting up mDNS responder!"));
     }
     DEBUG_PRINT(hostname);
     DEBUG_PRINTLN(F(" --> mDNS responder started"));
@@ -452,6 +465,7 @@ void setup() {
 
     DEBUG_PRINTLN(F("FIRST LOAD..."))
     leggiStatoInverterCallback();
+    leggiStatoBatteriaCallback();
     manageStaticDataCallback();
     leggiProduzioneCallback();
 }
@@ -465,6 +479,10 @@ void loop() {
 
 	if (fixedTime && LeggiStatoInverter.shouldRun()) {
 		LeggiStatoInverter.run();
+	}
+
+	if (fixedTime && LeggiStatoBatteria.shouldRun()) {
+		LeggiStatoBatteria.run();
 	}
 
 	if (fixedTime && ManageStaticData.shouldRun()) {
@@ -488,6 +506,48 @@ void loop() {
 
 // We can read/write a file at time in the SD card
 File myFileSDCart; // @suppress("Ambiguous problem")
+
+void leggiStatoBatteriaCallback() {
+	DEBUG_PRINT(F("Thread call (leggiStatoBatteriaCallback) --> "));
+	DEBUG_PRINT(getEpochStringByParams(now()));
+	DEBUG_PRINT(F(" MEM --> "));
+	DEBUG_PRINTLN(ESP.getFreeHeap())
+
+	float bv = getBatteryVoltage();
+	DEBUG_PRINT(F(" BATTERY --> "));
+	DEBUG_PRINTLN(bv);
+	DEBUG_PRINTLN(bv>2);
+	DEBUG_PRINTLN(bv>1);
+	if (bv>1) {
+		String scopeDirectory = F("battery");
+		if (!SD.exists(scopeDirectory)) {
+			SD.mkdir(scopeDirectory);
+		}
+		String filename = scopeDirectory +"/"+ getEpochStringByParams(now(), (char*) "%Y%m%d") + F(".jso");
+
+		DynamicJsonDocument doc;
+		JsonObject obj;
+
+		obj = getJSonFromFile(&doc, filename);
+
+		obj[F("lastUpdate")] = getEpochStringByParams(now());
+
+		JsonObject data;
+		if (!obj.containsKey(F("data"))) {
+			data = obj.createNestedObject(F("data"));
+		} else {
+			data = obj[F("data")];
+		}
+
+		data[getEpochStringByParams(now(),(char*) "%H%M")]=bv;
+
+		DEBUG_PRINTLN(F("done."));
+
+		isFileSaveOK = saveJSonToAFile(&doc, filename);
+
+	}
+
+}
 
 void leggiStatoInverterCallback() {
 	DEBUG_PRINT(F("Thread call (LeggiStatoInverterCallback) --> "));
@@ -1295,6 +1355,23 @@ void getProduction(){
 	}
 }
 
+void getBatteryInfo(){
+	DEBUG_PRINTLN(F("getBatteryInfo"));
+
+	setCrossOrigin();
+
+	if (httpRestServer.arg(F("day"))== "" ){     //Parameter not found
+		httpRestServer.send(400, F("text/html"), F("Missing required parameter!"));
+		DEBUG_PRINTLN(F("No parameter"));
+	}else{     //Parameter found
+		DEBUG_PRINT(F("Read file: "));
+		String filename = "battery/"+httpRestServer.arg(F("day"))+".jso";
+
+		DEBUG_PRINTLN(filename);
+
+		streamFileOnRest(filename);
+	}
+}
 void getProductionTotal(){
 	DEBUG_PRINTLN(F("getProduction"));
 
@@ -1328,27 +1405,25 @@ void getMontlyValue(){
 	}
 }
 
-
-// ARRIVATO QUI
 void getHistoricalValue(){
 	DEBUG_PRINTLN(F("getHistoricalValue"));
 
 	setCrossOrigin();
-	String scopeDirectory = "states";
+	String scopeDirectory = F("states");
 
 	if (httpRestServer.arg("frequence")== ""){     //Parameter not found
 		httpRestServer.send(400, F("text/html"), F("Missing required parameter!"));
 		DEBUG_PRINTLN(F("No frequence parameter"));
 	}else{     //Parameter found
 		String filename;
-		if (httpRestServer.arg("frequence") == "years"){
+		if (httpRestServer.arg("frequence") == F("years")){
 			filename = scopeDirectory+'/'+httpRestServer.arg("frequence")+".jso";
 		}else{
 			if (httpRestServer.arg("year")== ""){
 				httpRestServer.send(400, F("text/html"), F("Missing required parameter!"));
 				DEBUG_PRINTLN(F("No year parameter"));
 			}else{
-				filename = scopeDirectory+'/'+httpRestServer.arg("frequence")+'/'+httpRestServer.arg("year")+".jso";
+				filename = scopeDirectory+'/'+httpRestServer.arg("frequence")+'/'+httpRestServer.arg("year")+F(".jso");
 			}
 		}
 		DEBUG_PRINT(F("Read file: "));
@@ -1373,7 +1448,7 @@ void postConfigFile() {
 
 		String msg = error.c_str();
 
-		httpRestServer.send(400, "text/html", "Error in parsin json body! <br>"+msg);
+		httpRestServer.send(400, F("text/html"), "Error in parsin json body! <br>"+msg);
 
 	}else{
 		JsonObject postObj = doc.as<JsonObject>();
@@ -1385,23 +1460,24 @@ void postConfigFile() {
             if ((postObj.containsKey("server"))) {
 
             	DEBUG_PRINT(F("Open config file..."));
-            	fs::File configFile = SPIFFS.open("/mc/config.txt", "w");
+            	fs::File configFile = SPIFFS.open(F("/mc/config.txt"), "w");
             	if (!configFile) {
-            	    DEBUG_PRINTLN("fail.");
-            	    httpRestServer.send(304, "text/html", "Fail to store data, can't open file!");
+            	    DEBUG_PRINTLN(F("fail."));
+            	    httpRestServer.send(304, F("text/html"), F("Fail to store data, can't open file!"));
             	}else{
-            		DEBUG_PRINTLN("done.");
+            		DEBUG_PRINTLN(F("done."));
             		serializeJson(doc, configFile);
-            		httpRestServer.send(201, "application/json", postBody);
+//            		httpRestServer.sendHeader("Content-Length", String(postBody.length()));
+            		httpRestServer.send(201, F("application/json"), postBody);
 
-//            	  DEBUG_PRINTLN(F("Reset"));
-//				  delay(15000);
-//				  ESP.reset();
-//				  delay(2000);
+//            		DEBUG_PRINTLN(F("Sent reset page"));
+//					  delay(5000);
+//					  ESP.restart();
+//					  delay(2000);
             	}
             }
             else {
-            	httpRestServer.send(204, "text/html", "No data found, or incorrect!");
+            	httpRestServer.send(204, F("text/html"), F("No data found, or incorrect!"));
             }
         }
     }
@@ -1413,22 +1489,21 @@ void getConfigFile(){
 	setCrossOrigin();
 
 	DEBUG_PRINT(F("Read file: "));
-	if (SPIFFS.exists("/mc/config.txt")){
-    	fs::File configFile = SPIFFS.open("/mc/config.txt", "r");
+	if (SPIFFS.exists(F("/mc/config.txt"))){
+    	fs::File configFile = SPIFFS.open(F("/mc/config.txt"), "r");
 		if (configFile){
 			if (configFile.available()){
 				DEBUG_PRINT(F("Stream file..."));
-				httpRestServer.streamFile(configFile, "application/json");
+				httpRestServer.streamFile(configFile, F("application/json"));
 				DEBUG_PRINTLN(F("done."));
 			}else{
 				DEBUG_PRINTLN(F("File not found!"));
-				httpRestServer.send(204, "text/html", "No content found!");
+				httpRestServer.send(204, F("text/html"), F("No content found!"));
 			}
 			configFile.close();
 		}
 	}else{
 		DEBUG_PRINTLN(F("File not found!"));
-		httpRestServer.send(204, "text/html", "No content found!");
 	}
 }
 
@@ -1437,10 +1512,10 @@ void getInverterInfo(){
 
 	setCrossOrigin();
 
-	String scopeDirectory = "static";
+	String scopeDirectory = F("static");
 
 	DEBUG_PRINT(F("Read file: "));
-	String filename = scopeDirectory+"/invinfo.jso";
+	String filename = scopeDirectory+F("/invinfo.jso");
 	streamFileOnRest(filename);
 }
 
@@ -1449,7 +1524,7 @@ void inverterDayWithProblem() {
 
 	setCrossOrigin();
 
-	String scopeDirectory = "alarms";
+	String scopeDirectory = F("alarms");
 
 	myFileSDCart = SD.open(scopeDirectory);
 
@@ -1480,11 +1555,11 @@ void inverterDayWithProblem() {
 		DEBUG_PRINT(F("Stream file..."));
 		String buf;
 		serializeJson(rootObj, buf);
-		httpRestServer.send(200, "application/json", buf);
+		httpRestServer.send(200, F("application/json"), buf);
 		DEBUG_PRINTLN(F("done."));
 	} else {
 		DEBUG_PRINTLN(F("No content found!"));
-		httpRestServer.send(204, "text/html", "No content found!");
+		httpRestServer.send(204, F("text/html"), F("No content found!"));
 	}
 }
 
@@ -1493,18 +1568,18 @@ void getInverterDayState() {
 
 	setCrossOrigin();
 
-	String scopeDirectory = "alarms";
+	String scopeDirectory = F("alarms");
 
 	DEBUG_PRINT(F("Read file: "));
 
 	if (httpRestServer.arg("day") == "") {     //Parameter not found
-		httpRestServer.send(400, "text/html", "Missing required parameter!");
+		httpRestServer.send(400, F("text/html"), F("Missing required parameter!"));
 		DEBUG_PRINTLN(F("No parameter"));
 	} else {     //Parameter found
 
 		String filename;
 		String parameter = httpRestServer.arg("day");
-		filename = scopeDirectory + '/' + parameter + "/alarms.jso";
+		filename = scopeDirectory + '/' + parameter + F("/alarms.jso");
 
 		DEBUG_PRINTLN(filename);
 
@@ -1517,15 +1592,30 @@ void getInverterLastState(){
 
 	setCrossOrigin();
 
-	String scopeDirectory = "alarms";
+	String scopeDirectory = F("alarms");
 
 	DEBUG_PRINT(F("Read file: "));
 
 	String filename;
 	String parameter = httpRestServer.arg("day");
-	filename = scopeDirectory+"/alarStat.jso";
+	filename = scopeDirectory+F("/alarStat.jso");
 
 	streamFileOnRest(filename);
+}
+
+float getBatteryVoltage(){
+	//************ Measuring Battery Voltage ***********
+	float sample1 = 0;
+
+	for (int i = 0; i < 100; i++) {
+		sample1 = sample1 + analogRead(A0); //read the voltage from the divider circuit
+		delay(2);
+	}
+	sample1 = sample1 / 100;
+	DEBUG_PRINT(F("AnalogRead..."));
+	DEBUG_PRINTLN(sample1);
+	float batVolt = (sample1 * 3.3 * (BAT_RES_VALUE_VCC + BAT_RES_VALUE_GND) / BAT_RES_VALUE_GND) / 1023;
+	return batVolt;
 }
 
 void getServerState(){
@@ -1537,40 +1627,36 @@ void getServerState(){
 	JsonObject rootObj = doc.to<JsonObject>();
 
 	JsonObject net = rootObj.createNestedObject("network");
-	rootObj["lastUpdate"] = getEpochStringByParams(now());
+	rootObj[F("lastUpdate")] = getEpochStringByParams(now());
 
-	net["ip"] = WiFi.localIP().toString();
-	net["gw"] = WiFi.gatewayIP().toString();
-	net["nm"] = WiFi.subnetMask().toString();
+	net[F("ip")] = WiFi.localIP().toString();
+	net[F("gw")] = WiFi.gatewayIP().toString();
+	net[F("nm")] = WiFi.subnetMask().toString();
 
-	net["dns1"] = WiFi.dnsIP(0).toString();
-	net["dns2"] = WiFi.dnsIP(1).toString();
+	net[F("dns1")] = WiFi.dnsIP(0).toString();
+	net[F("dns2")] = WiFi.dnsIP(1).toString();
 
-	net["signalStrengh"] = WiFi.RSSI();
+	net[F("signalStrengh")] = WiFi.RSSI();
 
 	JsonObject chip = rootObj.createNestedObject("chip");
-	chip["chipId"] = ESP.getChipId();
-	chip["flashChipId"] = ESP.getFlashChipId();
-	chip["flashChipSize"] = ESP.getFlashChipSize();
-	chip["flashChipRealSize"] = ESP.getFlashChipRealSize();
+	chip[F("chipId")] = ESP.getChipId();
+	chip[F("flashChipId")] = ESP.getFlashChipId();
+	chip[F("flashChipSize")] = ESP.getFlashChipSize();
+	chip[F("flashChipRealSize")] = ESP.getFlashChipRealSize();
 
-
-	uint8_t raw = analogRead(A0);
-	float volt=raw/1023.0;
-	volt=volt*4.2;
-	chip["batteryVoltage"] = volt;
+	chip[F("batteryVoltage")] = getBatteryVoltage(); //sample1;//setPrecision(batVolt,2);
 
 	DEBUG_PRINT(F("Stream file..."));
 	String buf;
 	serializeJson(rootObj, buf);
-	httpRestServer.send(200, "application/json", buf);
+	httpRestServer.send(200, F("application/json"), buf);
 	DEBUG_PRINTLN(F("done."));
 }
 
 void sendCrossOriginHeader(){
 	DEBUG_PRINTLN(F("sendCORSHeader"));
 
-	httpRestServer.sendHeader("access-control-allow-credentials", "false");
+	httpRestServer.sendHeader(F("access-control-allow-credentials"), F("false"));
 
 	setCrossOrigin();
 
@@ -1581,26 +1667,27 @@ void restServerRouting() {
 //	httpRestServer.header("Access-Control-Allow-Headers: Authorization, Content-Type");
 //
     httpRestServer.on("/", HTTP_GET, []() {
-    	httpRestServer.send(200, "text/html",
-            "Welcome to the Inverter Centraline REST Web Server");
+    	httpRestServer.send(200, F("text/html"),
+            F("Welcome to the Inverter Centraline REST Web Server"));
     });
-    httpRestServer.on("/production", HTTP_GET, getProduction);
-    httpRestServer.on("/productionTotal", HTTP_GET, getProductionTotal);
-    httpRestServer.on("/monthly", HTTP_GET, getMontlyValue);
+    httpRestServer.on(F("/production"), HTTP_GET, getProduction);
+    httpRestServer.on(F("/productionTotal"), HTTP_GET, getProductionTotal);
+    httpRestServer.on(F("/monthly"), HTTP_GET, getMontlyValue);
 
-    httpRestServer.on("/historical", HTTP_GET, getHistoricalValue);
+    httpRestServer.on(F("/historical"), HTTP_GET, getHistoricalValue);
 
-    httpRestServer.on("/config", HTTP_OPTIONS, sendCrossOriginHeader);
-    httpRestServer.on("/config", HTTP_POST, postConfigFile);
-    httpRestServer.on("/config", HTTP_GET, getConfigFile);
+    httpRestServer.on(F("/config"), HTTP_OPTIONS, sendCrossOriginHeader);
+    httpRestServer.on(F("/config"), HTTP_POST, postConfigFile);
+    httpRestServer.on(F("/config"), HTTP_GET, getConfigFile);
 
-    httpRestServer.on("/inverterInfo", HTTP_GET, getInverterInfo);
-    httpRestServer.on("/inverterState", HTTP_GET, getInverterLastState);
-    httpRestServer.on("/inverterDayWithProblem", HTTP_GET, inverterDayWithProblem);
-    httpRestServer.on("/inverterDayState", HTTP_GET, getInverterDayState);
+    httpRestServer.on(F("/inverterInfo"), HTTP_GET, getInverterInfo);
+    httpRestServer.on(F("/inverterState"), HTTP_GET, getInverterLastState);
+    httpRestServer.on(F("/inverterDayWithProblem"), HTTP_GET, inverterDayWithProblem);
+    httpRestServer.on(F("/inverterDayState"), HTTP_GET, getInverterDayState);
 
-    httpRestServer.on("/serverState", HTTP_GET, getServerState);
+    httpRestServer.on(F("/serverState"), HTTP_GET, getServerState);
 
+    httpRestServer.on(F("/battery"), HTTP_GET, getBatteryInfo);
 }
 
 void serverRouting() {
@@ -1608,7 +1695,7 @@ void serverRouting() {
 		  DEBUG_PRINTLN(F("On not found"));
 	    if (!handleFileRead(httpServer.uri())){                  // send it if it exists
 	    	DEBUG_PRINTLN(F("Not found"));
-	    	httpServer.send(404, "text/plain", "404: Not Found"); // otherwise, respond with a 404 (Not Found) error
+	    	httpServer.send(404, F("text/plain"), F("404: Not Found")); // otherwise, respond with a 404 (Not Found) error
 	    }
 	  });
 
@@ -1673,7 +1760,7 @@ void errorLed(bool flag){
 	}
 
 	digitalWrite(ERROR_PIN, flag);
-	if (!alreadySendNotification && sdWrongReadNumber>=10){
+	if (!alreadySendNotification && sdWrongReadNumber>=SD_WRONG_WRITE_NUMBER_ALERT){
 		alreadySendNotification = true;
     	DEBUG_PRINT(F("Open config file..."));
 		fs::File configFile = SPIFFS.open(F("/mc/config.txt"), "r");
@@ -1693,25 +1780,25 @@ void errorLed(bool flag){
 			JsonObject rootObj = doc.as<JsonObject>();
 
 			DEBUG_PRINT(F("After read config check serverSMTP and preferences "));
-			DEBUG_PRINTLN(rootObj.containsKey("serverSMTP") && rootObj.containsKey("preferences"));
+			DEBUG_PRINTLN(rootObj.containsKey(F("serverSMTP")) && rootObj.containsKey(F("preferences")));
 
-			if (rootObj.containsKey("serverSMTP") && rootObj.containsKey("preferences")){
+			if (rootObj.containsKey(F("serverSMTP")) && rootObj.containsKey(F("preferences"))){
 				JsonObject serverSMTP = rootObj["serverSMTP"];
 				JsonObject preferences = rootObj["preferences"];
 
-				DEBUG_PRINT("(preferences.containsKey(adminEmail) && preferences[adminEmail]!="")");
-				DEBUG_PRINTLN((preferences.containsKey("adminEmail") && preferences["adminEmail"]!=""));
+				DEBUG_PRINT(F("(preferences.containsKey(adminEmail) && preferences[adminEmail]!="")"));
+				DEBUG_PRINTLN((preferences.containsKey(F("adminEmail")) && preferences[F("adminEmail")]!=""));
 
-				if (preferences.containsKey("adminEmail") && preferences["adminEmail"]!=""){
-					const char* serverSMTPAddr = serverSMTP["server"];
+				if (preferences.containsKey(F("adminEmail")) && preferences[F("adminEmail")]!=""){
+					const char* serverSMTPAddr = serverSMTP[F("server")];
 					emailSend.setSMTPServer(serverSMTPAddr);
-					uint16_t portSMTP = serverSMTP["port"];
+					uint16_t portSMTP = serverSMTP[F("port")];
 					emailSend.setSMTPPort(portSMTP);
-					const char* loginSMTP = serverSMTP["login"];
+					const char* loginSMTP = serverSMTP[F("login")];
 					emailSend.setEMailLogin(loginSMTP);
-					const char* passwordSMTP = serverSMTP["password"];
+					const char* passwordSMTP = serverSMTP[F("password")];
 					emailSend.setEMailPassword(passwordSMTP);
-					const char* fromSMTP = serverSMTP["from"];
+					const char* fromSMTP = serverSMTP[F("from")];
 					emailSend.setEMailFrom(fromSMTP);
 
 					DEBUG_PRINT(F("server "));
