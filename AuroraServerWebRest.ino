@@ -5,6 +5,8 @@
 #include "FS.h"
 #include <Thread.h>
 
+#include <ESP8266WiFi.h>
+
 #include <TimeLib.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
@@ -16,16 +18,23 @@
 #include <WiFiManager.h>
 #include <SPI.h>
 
-#include <ArduinoJson.h>
-
 #include <EMailSender.h>
+
+// HEAP file
+#define CONFIG_FILE_HEAP 4096
+#define BATTERY_STATE_HEAP 3072
+#define ALARM_IN_A_DAY 4096
+#define INVERTER_INFO_HEAP 4096
+#define PRODUCTION_AND_CUMULATED_HEAP 8192
+#define CUMULATED_VALUES_HEAP 2048
+#define CUMULATED_VALUES_TOT_HEAP 4096
 
 // Battery voltage resistance
 #define BAT_RES_VALUE_GND 20.0
 #define BAT_RES_VALUE_VCC 10.0
 
 // Uncomment to enable server ftp.
-//#define SERVER_FTP
+#define SERVER_FTP
 //#define SERVER_HTTPS
 #define HARDWARE_SERIAL
 
@@ -229,8 +238,8 @@ void setup() {
 //		    }
 //
 		DEBUG_PRINTLN(F("done."));
-		DynamicJsonDocument doc;
-		DeserializationError error = deserializeJson(doc, configFile);
+		DynamicJsonDocument doc(CONFIG_FILE_HEAP);
+		ArduinoJson::DeserializationError error = deserializeJson(doc, configFile);
 		// close the file:
 		configFile.close();
 
@@ -364,7 +373,7 @@ void setup() {
 	    DEBUG_PRINTLN(F("fail."));
 	}else{
 		DEBUG_PRINTLN(F("done."));
-		DynamicJsonDocument doc;
+		DynamicJsonDocument doc(2048);
 		JsonObject postObj = doc.to<JsonObject>();
 		postObj[F("localIP")] = WiFi.localIP().toString();
 		postObj[F("localRestPort")] = HTTP_REST_PORT;
@@ -394,8 +403,10 @@ void setup() {
 		sdStarted = false;
 		// return to stop all
 		return;
+	}else{
+		sdStarted = true;
+
 	}
-	sdStarted = true;
 	DEBUG_PRINTLN(F("Inizialization done."));
 
 	ManageStaticData.onRun(manageStaticDataCallback);
@@ -463,11 +474,13 @@ void setup() {
 
 //    digitalWrite(ERROR_PIN, !(fixedTime && sdStarted&& wifiConnected && isFileSaveOK));
 
-    DEBUG_PRINTLN(F("FIRST LOAD..."))
-    leggiStatoInverterCallback();
-    leggiStatoBatteriaCallback();
-    manageStaticDataCallback();
-    leggiProduzioneCallback();
+	if (fixedTime && sdStarted){
+		DEBUG_PRINTLN(F("FIRST LOAD..."))
+		leggiStatoInverterCallback();
+		leggiStatoBatteriaCallback();
+		manageStaticDataCallback();
+		leggiProduzioneCallback();
+	}
 }
 
 void loop() {
@@ -477,15 +490,15 @@ void loop() {
 		LeggiProduzione.run();
 	}
 
-	if (fixedTime && LeggiStatoInverter.shouldRun()) {
+	if (fixedTime && sdStarted && LeggiStatoInverter.shouldRun()) {
 		LeggiStatoInverter.run();
 	}
 
-	if (fixedTime && LeggiStatoBatteria.shouldRun()) {
+	if (fixedTime && sdStarted && LeggiStatoBatteria.shouldRun()) {
 		LeggiStatoBatteria.run();
 	}
 
-	if (fixedTime && ManageStaticData.shouldRun()) {
+	if (fixedTime && sdStarted && ManageStaticData.shouldRun()) {
 		ManageStaticData.run();
 	}
 	if (UpdateLocalTimeWithNTP.shouldRun()) {
@@ -525,7 +538,7 @@ void leggiStatoBatteriaCallback() {
 		}
 		String filename = scopeDirectory +"/"+ getEpochStringByParams(now(), (char*) "%Y%m%d") + F(".jso");
 
-		DynamicJsonDocument doc;
+		DynamicJsonDocument doc(BATTERY_STATE_HEAP);
 		JsonObject obj;
 
 		obj = getJSonFromFile(&doc, filename);
@@ -571,7 +584,7 @@ void leggiStatoInverterCallback() {
 
 		String filename = scopeDirectory + F("/alarStat.jso");
 
-		DynamicJsonDocument doc;
+		DynamicJsonDocument doc(2048);
 		JsonObject rootObj = doc.to<JsonObject>();
 
 		rootObj[F("lastUpdate")] = getEpochStringByParams(now());
@@ -599,7 +612,7 @@ void leggiStatoInverterCallback() {
 
 		String filenameAL = scopeDirectory + '/' + dayDirectory + F("/alarms.jso");
 
-		DynamicJsonDocument docAS;
+		DynamicJsonDocument docAS(ALARM_IN_A_DAY);
 		JsonObject obj;
 
 		obj = getJSonFromFile(&docAS, filenameAL);
@@ -687,12 +700,12 @@ void leggiStatoInverterCallback() {
 				fs::File configFile = SPIFFS.open(F("/mc/config.txt"), "r");
 				if (configFile) {
 				    DEBUG_PRINTLN(F("done."));
-					DynamicJsonDocument doc;
+					DynamicJsonDocument doc(CONFIG_FILE_HEAP);
 					DeserializationError error = deserializeJson(doc, configFile);
 					if (error) {
 						// if the file didn't open, print an error:
 						DEBUG_PRINT(F("Error parsing JSON "));
-						DEBUG_PRINTLN(error);
+						DEBUG_PRINTLN(error.c_str());
 					}
 
 					// close the file:
@@ -877,7 +890,7 @@ void manageStaticDataCallback () {
 
 		String filename = scopeDirectory+ F("/invinfo.jso");
 
-		DynamicJsonDocument doc;
+		DynamicJsonDocument doc(INVERTER_INFO_HEAP);
 		JsonObject rootObj = doc.to<JsonObject>();
 
 		rootObj[F("lastUpdate")] = getEpochStringByParams(now());
@@ -940,7 +953,7 @@ void cumulatedEnergyDaily(tm nowDt){
 						+ F(".jso");
 				String tagName = getEpochStringByParams(now(), (char*) "%d");
 
-				DynamicJsonDocument doc;
+				DynamicJsonDocument doc(PRODUCTION_AND_CUMULATED_HEAP);
 				JsonObject obj;
 
 				obj = getJSonFromFile(&doc, filename);
@@ -1007,7 +1020,7 @@ void readTotals(tm nowDt){
 				String filename = scopeDirectory + F("/lastStat.jso");
 				String tagName = getEpochStringByParams(now(), (char*) "%d");
 
-				DynamicJsonDocument doc;
+				DynamicJsonDocument doc(CUMULATED_VALUES_HEAP);
 				JsonObject obj = doc.to<JsonObject>();;
 
 				obj[F("lastUpdate")] = getEpochStringByParams(now());
@@ -1040,7 +1053,7 @@ void readTotals(tm nowDt){
 				isFileSaveOK = saveJSonToAFile(&doc, filename);
 
 				{
-					DynamicJsonDocument docW;
+					DynamicJsonDocument docW(CUMULATED_VALUES_TOT_HEAP);
 					JsonObject objW;
 
 					String dir = scopeDirectory + F("/weeks");
@@ -1056,7 +1069,7 @@ void readTotals(tm nowDt){
 					isFileSaveOK = saveJSonToAFile(&docW, filenamew);
 				}
 				{
-					DynamicJsonDocument docM;
+					DynamicJsonDocument docM(CUMULATED_VALUES_TOT_HEAP);
 					JsonObject objM;
 
 					String dir = scopeDirectory + F("/months");
@@ -1073,7 +1086,7 @@ void readTotals(tm nowDt){
 					isFileSaveOK = saveJSonToAFile(&docM, filenamem);
 				}
 				{
-					DynamicJsonDocument docY;
+					DynamicJsonDocument docY(CUMULATED_VALUES_TOT_HEAP);
 					JsonObject objY;
 
 					String filenamey = scopeDirectory + F("/years.jso");
@@ -1131,7 +1144,7 @@ void readProductionDaily(tm nowDt){
 					String filenameDir = scopeDirectory + "/" + dataDirectory
 							+ "/" + filename;
 
-					DynamicJsonDocument doc;
+					DynamicJsonDocument doc(PRODUCTION_AND_CUMULATED_HEAP);
 					JsonObject obj;
 
 					obj = getJSonFromFile(&doc, filenameDir);
@@ -1191,7 +1204,7 @@ JsonObject getJSonFromFile(DynamicJsonDocument *doc, String filename, bool force
 		if (error) {
 			// if the file didn't open, print an error:
 			DEBUG_PRINT(F("Error parsing JSON "));
-			DEBUG_PRINTLN(error);
+			DEBUG_PRINTLN(error.c_str());
 
 			if (forceCleanONJsonError){
 				return doc->to<JsonObject>();
@@ -1439,12 +1452,12 @@ void postConfigFile() {
     String postBody = httpRestServer.arg("plain");
     DEBUG_PRINTLN(postBody);
 
-	DynamicJsonDocument doc;
+	DynamicJsonDocument doc(CONFIG_FILE_HEAP);
 	DeserializationError error = deserializeJson(doc, postBody);
 	if (error) {
 		// if the file didn't open, print an error:
 		DEBUG_PRINT(F("Error parsing JSON "));
-		DEBUG_PRINTLN(error);
+		DEBUG_PRINTLN(error.c_str());
 
 		String msg = error.c_str();
 
@@ -1529,7 +1542,7 @@ void inverterDayWithProblem() {
 	myFileSDCart = SD.open(scopeDirectory);
 
 
-	DynamicJsonDocument doc;
+	DynamicJsonDocument doc(ALARM_IN_A_DAY);
 	JsonObject rootObj = doc.to<JsonObject>();
 
 	JsonArray data = rootObj.createNestedArray("data");
@@ -1623,7 +1636,7 @@ void getServerState(){
 
 	setCrossOrigin();
 
-	DynamicJsonDocument doc;
+	DynamicJsonDocument doc(2048);
 	JsonObject rootObj = doc.to<JsonObject>();
 
 	JsonObject net = rootObj.createNestedObject("network");
@@ -1644,6 +1657,8 @@ void getServerState(){
 	chip[F("flashChipSize")] = ESP.getFlashChipSize();
 	chip[F("flashChipRealSize")] = ESP.getFlashChipRealSize();
 
+	chip[F("freeHeap")] = ESP.getFreeHeap();
+
 	chip[F("batteryVoltage")] = getBatteryVoltage(); //sample1;//setPrecision(batVolt,2);
 
 	DEBUG_PRINT(F("Stream file..."));
@@ -1651,6 +1666,50 @@ void getServerState(){
 	serializeJson(rootObj, buf);
 	httpRestServer.send(200, F("application/json"), buf);
 	DEBUG_PRINTLN(F("done."));
+}
+void getReset(){
+	DEBUG_PRINTLN(F("getReset"));
+
+	setCrossOrigin();
+
+//	DynamicJsonDocument doc(2048);
+//	JsonObject rootObj = doc.to<JsonObject>();
+//
+//	JsonObject net = rootObj.createNestedObject("network");
+//	rootObj[F("lastUpdate")] = getEpochStringByParams(now());
+//
+//	net[F("ip")] = WiFi.localIP().toString();
+//	net[F("gw")] = WiFi.gatewayIP().toString();
+//	net[F("nm")] = WiFi.subnetMask().toString();
+//
+//	net[F("dns1")] = WiFi.dnsIP(0).toString();
+//	net[F("dns2")] = WiFi.dnsIP(1).toString();
+//
+//	net[F("signalStrengh")] = WiFi.RSSI();
+//
+//	JsonObject chip = rootObj.createNestedObject("chip");
+//	chip[F("chipId")] = ESP.getChipId();
+//	chip[F("flashChipId")] = ESP.getFlashChipId();
+//	chip[F("flashChipSize")] = ESP.getFlashChipSize();
+//	chip[F("flashChipRealSize")] = ESP.getFlashChipRealSize();
+//
+//	chip[F("freeHeap")] = ESP.getFreeHeap();
+//
+//	chip[F("batteryVoltage")] = getBatteryVoltage(); //sample1;//setPrecision(batVolt,2);
+//
+//	DEBUG_PRINT(F("Stream file..."));
+//	String buf;
+//	serializeJson(rootObj, buf);
+//	httpRestServer.send(200, F("application/json"), buf);
+//	DEBUG_PRINTLN(F("done."));
+	DEBUG_PRINT(F("Reset..."));
+	WiFiManager wifiManager;
+	wifiManager.resetSettings();
+
+	DEBUG_PRINT(SPIFFS.remove(F("/mc/config.txt")));
+
+	DEBUG_PRINTLN(F("done"));
+
 }
 
 void sendCrossOriginHeader(){
@@ -1688,6 +1747,10 @@ void restServerRouting() {
     httpRestServer.on(F("/serverState"), HTTP_GET, getServerState);
 
     httpRestServer.on(F("/battery"), HTTP_GET, getBatteryInfo);
+
+    httpRestServer.on(F("/reset"), HTTP_GET, getReset);
+
+
 }
 
 void serverRouting() {
@@ -1766,12 +1829,12 @@ void errorLed(bool flag){
 		fs::File configFile = SPIFFS.open(F("/mc/config.txt"), "r");
 		if (configFile) {
 			DEBUG_PRINTLN("done.");
-			DynamicJsonDocument doc;
+			DynamicJsonDocument doc(CONFIG_FILE_HEAP);
 			DeserializationError error = deserializeJson(doc, configFile);
 			if (error) {
 				// if the file didn't open, print an error:
 				DEBUG_PRINT(F("Error parsing JSON "));
-				DEBUG_PRINTLN(error);
+				DEBUG_PRINTLN(error.c_str());
 			}
 
 			// close the file:

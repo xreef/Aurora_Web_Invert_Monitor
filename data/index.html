@@ -1,0 +1,31 @@
+<!doctype html>
+<meta charset="utf-8"/>
+
+<meta http-equiv="Cache-Control" content="public">
+<!-- Add manifest -->
+<link rel="manifest" href="manifest.json">
+<!-- Tell the browser it's a PWA -->
+<meta name="mobile-web-app-capable" content="yes">
+<!-- Tell iOS it's a PWA -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<!-- Make sure theme-color is defined -->
+<meta name="theme-color" content="#536878">
+
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
+<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+<link rel="icon" href="/favicon.ico" type="image/x-icon">
+
+<title>Aurora Inverter Centraline</title>
+<body>
+  <div id="container" class="app-container"></div>
+
+  <!--<script src="../__build__/shared.js"></script>-->
+  <script id="settings" src="settings.json"></script>
+  <script language="javascript" type="text/javascript">
+    var d = new Date();
+    document.getElementById("settings").src = "settings.json?v=" +d.getTime();
+  </script>
+
+  <script src="aurora-web.min.js?v=20190130213341"></script>
+
