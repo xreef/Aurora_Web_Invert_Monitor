@@ -398,15 +398,24 @@ void setup() {
 
 	// Start inizialization of SD cart
 	DEBUG_PRINT(F("Initializing SD card..."));
-	if (!SD.begin(CS_PIN, SPI_HALF_SPEED)) {
-		DEBUG_PRINTLN(F("initialization failed!"));
-		sdStarted = false;
-		// return to stop all
-		return;
-	}else{
-		sdStarted = true;
 
-	}
+	  // Initialize SD library
+	  while (!SD.begin()) {
+		Serial.println(F("Failed to initialize SD library"));
+		delay(1000);
+		sdStarted = false;
+	  }
+	  sdStarted = true;
+
+//	if (!SD.begin(CS_PIN, SPI_HALF_SPEED)) {
+//		DEBUG_PRINTLN(F("initialization failed!"));
+//		sdStarted = false;
+//		// return to stop all
+//		return;
+//	}else{
+//		sdStarted = true;
+//
+//	}
 	DEBUG_PRINTLN(F("Inizialization done."));
 
 	ManageStaticData.onRun(manageStaticDataCallback);
