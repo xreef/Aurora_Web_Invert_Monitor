@@ -107,6 +107,11 @@
 			<locationURI>ECLIPSE_HOME/arduinoPlugin/libraries/Time/1.5.0</locationURI>
 		</link>
 		<link>
+			<name>libraries/Timezone</name>
+			<type>2</type>
+			<locationURI>ECLIPSE_HOME/arduinoPlugin/libraries/Timezone/1.2.2</locationURI>
+		</link>
+		<link>
 			<name>libraries/WiFiManager</name>
 			<type>2</type>
 			<locationURI>ECLIPSE_HOME/arduinoPlugin/libraries/WiFiManager/0.14.0</locationURI>

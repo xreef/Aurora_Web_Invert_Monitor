@@ -37,6 +37,7 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/EMailSender}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/ESP8266mDNS}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/esp8266FTPServer}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/Timezone/src}&quot;"/>
 								</option>
 								<inputType id="io.sloeber.compiler.cpp.sketch.input.903989226" name="Sorgente CPP" superClass="io.sloeber.compiler.cpp.sketch.input"/>
 							</tool>
@@ -60,6 +61,7 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/EMailSender}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/ESP8266mDNS}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/esp8266FTPServer}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/Timezone/src}&quot;"/>
 								</option>
 								<inputType id="io.sloeber.compiler.c.sketch.input.1757420875" name="Sorgente C" superClass="io.sloeber.compiler.c.sketch.input"/>
 							</tool>
@@ -83,6 +85,7 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/EMailSender}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/ESP8266mDNS}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/esp8266FTPServer}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/Timezone/src}&quot;"/>
 								</option>
 								<inputType id="io.sloeber.compiler.S.sketch.input.1151373035" name="Sorgente Assembly" superClass="io.sloeber.compiler.S.sketch.input"/>
 							</tool>

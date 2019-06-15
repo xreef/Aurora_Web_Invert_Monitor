@@ -20,6 +20,10 @@
 
 #include <EMailSender.h>
 
+#include <Timezone.h>    // https://github.com/JChristensen/Timezone
+
+
+
 // HEAP file
 #define CONFIG_FILE_HEAP 4096
 #define BATTERY_STATE_HEAP 3072
@@ -97,6 +101,8 @@ void leggiStatoInverterCallback();
 void leggiStatoBatteriaCallback();
 void updateLocalTimeWithNTPCallback();
 float getBatteryVoltage();
+Timezone getTimezoneData(const String code);
+time_t getLocalTime(void);
 
 bool isFileSaveOK = true;
 bool saveJSonToAFile(DynamicJsonDocument *doc, String filename);
@@ -180,7 +186,7 @@ void serverRouting();
 WiFiUDP ntpUDP;
 // By default 'pool.ntp.org' is used with 60 seconds update interval and
 // no offset
-NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", 1*60*60, 60*60*1000);
+NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", 0*60*60, 60*60*1000);
 
 Thread UpdateLocalTimeWithNTP = Thread();
 
@@ -201,6 +207,8 @@ FtpServer ftpSrv;   //set #define FTP_DEBUG in ESP8266FtpServer.h to see ftp ver
 #endif
 
 int timeOffset = 0;
+
+String codeDST = "GTM";
 
 void setup() {
 	pinMode(A0, INPUT);
@@ -261,9 +269,30 @@ void setup() {
 					DEBUG_PRINT(F("Impostazione GTM+"))
 					DEBUG_PRINTLN(value)
 
-					timeClient.setTimeOffset(value*60*60);
+//					timeClient.setTimeOffset(value*60*60);
 					timeOffset = value*60*60;
 				}
+			}
+
+			bool isDST = preferences.containsKey(F("DST"));
+			if (isDST){
+				JsonObject DST = preferences[F("DST")];
+				bool isCode = DST.containsKey(F("code"));
+				if (isCode){
+					const String code = DST[F("code")];
+//					const String desc = DST[F("description")];
+
+					codeDST = code;
+					DEBUG_PRINT(F("Impostazione DST "))
+					DEBUG_PRINTLN(code)
+//					DEBUG_PRINT(F("Description DST "))
+//					DEBUG_PRINTLN(desc)
+
+//					timeClient.setTimeOffset(value*60*60);
+//					timeOffset = value*60*60;
+				}
+			}else{
+				codeDST = "GTM";
 			}
 
 			JsonObject serverConfig = rootObj[F("server")];
@@ -531,7 +560,7 @@ File myFileSDCart; // @suppress("Ambiguous problem")
 
 void leggiStatoBatteriaCallback() {
 	DEBUG_PRINT(F("Thread call (leggiStatoBatteriaCallback) --> "));
-	DEBUG_PRINT(getEpochStringByParams(now()));
+	DEBUG_PRINT(getEpochStringByParams(getLocalTime()));
 	DEBUG_PRINT(F(" MEM --> "));
 	DEBUG_PRINTLN(ESP.getFreeHeap())
 
@@ -545,14 +574,14 @@ void leggiStatoBatteriaCallback() {
 		if (!SD.exists(scopeDirectory)) {
 			SD.mkdir(scopeDirectory);
 		}
-		String filename = scopeDirectory +"/"+ getEpochStringByParams(now(), (char*) "%Y%m%d") + F(".jso");
+		String filename = scopeDirectory +"/"+ getEpochStringByParams(getLocalTime(), (char*) "%Y%m%d") + F(".jso");
 
 		DynamicJsonDocument doc(BATTERY_STATE_HEAP);
 		JsonObject obj;
 
 		obj = getJSonFromFile(&doc, filename);
 
-		obj[F("lastUpdate")] = getEpochStringByParams(now());
+		obj[F("lastUpdate")] = getEpochStringByParams(getLocalTime());
 
 		JsonObject data;
 		if (!obj.containsKey(F("data"))) {
@@ -561,7 +590,7 @@ void leggiStatoBatteriaCallback() {
 			data = obj[F("data")];
 		}
 
-		data[getEpochStringByParams(now(),(char*) "%H%M")]=bv;
+		data[getEpochStringByParams(getLocalTime(),(char*) "%H%M")]=bv;
 
 		DEBUG_PRINTLN(F("done."));
 
@@ -573,7 +602,7 @@ void leggiStatoBatteriaCallback() {
 
 void leggiStatoInverterCallback() {
 	DEBUG_PRINT(F("Thread call (LeggiStatoInverterCallback) --> "));
-	DEBUG_PRINT(getEpochStringByParams(now()));
+	DEBUG_PRINT(getEpochStringByParams(getLocalTime()));
 	DEBUG_PRINT(F(" MEM --> "));
 	DEBUG_PRINTLN(ESP.getFreeHeap())
 
@@ -596,7 +625,7 @@ void leggiStatoInverterCallback() {
 		DynamicJsonDocument doc(2048);
 		JsonObject rootObj = doc.to<JsonObject>();
 
-		rootObj[F("lastUpdate")] = getEpochStringByParams(now());
+		rootObj[F("lastUpdate")] = getEpochStringByParams(getLocalTime());
 
 		rootObj[F("alarmStateParam")] = dataState.alarmState;
 		rootObj[F("alarmState")] = dataState.getAlarmState();
@@ -617,7 +646,7 @@ void leggiStatoInverterCallback() {
 		// If alarm present or inverterState not running
 //		if (dataState.alarmState>0 || dataState.inverterState!=2){
 
-		String dayDirectory = getEpochStringByParams(now(), (char*) "%Y%m%d");
+		String dayDirectory = getEpochStringByParams(getLocalTime(), (char*) "%Y%m%d");
 
 		String filenameAL = scopeDirectory + '/' + dayDirectory + F("/alarms.jso");
 
@@ -626,7 +655,7 @@ void leggiStatoInverterCallback() {
 
 		obj = getJSonFromFile(&docAS, filenameAL);
 
-		obj[F("lastUpdate")] = getEpochStringByParams(now());
+		obj[F("lastUpdate")] = getEpochStringByParams(getLocalTime());
 
 		JsonArray data;
 		if (!obj.containsKey(F("data"))) {
@@ -679,7 +708,7 @@ void leggiStatoInverterCallback() {
 
 				JsonObject objArrayData = data.createNestedObject();
 
-				objArrayData[F("h")] = getEpochStringByParams(now(),
+				objArrayData[F("h")] = getEpochStringByParams(getLocalTime(),
 						(char*) "%H%M");
 
 				objArrayData[F("asp")] = dataState.alarmState;
@@ -859,7 +888,7 @@ void leggiStatoInverterCallback() {
 
 void manageStaticDataCallback () {
 	DEBUG_PRINT(F("Thread call (manageStaticDataCallback) --> "));
-	DEBUG_PRINT(getEpochStringByParams(now()));
+	DEBUG_PRINT(getEpochStringByParams(getLocalTime()));
 	DEBUG_PRINT(F(" MEM --> "));
 	DEBUG_PRINTLN(ESP.getFreeHeap())
 
@@ -902,7 +931,7 @@ void manageStaticDataCallback () {
 		DynamicJsonDocument doc(INVERTER_INFO_HEAP);
 		JsonObject rootObj = doc.to<JsonObject>();
 
-		rootObj[F("lastUpdate")] = getEpochStringByParams(now());
+		rootObj[F("lastUpdate")] = getEpochStringByParams(getLocalTime());
 
 		rootObj[F("modelNameParam")] = dataVersion.par1;
 		rootObj[F("modelName")] = dataVersion.getModelName().name;
@@ -958,16 +987,16 @@ void cumulatedEnergyDaily(tm nowDt){
 
 			if (energy && energy > 0) {
 				String filename = scopeDirectory + "/"
-						+ getEpochStringByParams(now(), (char*) "%Y%m")
+						+ getEpochStringByParams(getLocalTime(), (char*) "%Y%m")
 						+ F(".jso");
-				String tagName = getEpochStringByParams(now(), (char*) "%d");
+				String tagName = getEpochStringByParams(getLocalTime(), (char*) "%d");
 
 				DynamicJsonDocument doc(PRODUCTION_AND_CUMULATED_HEAP);
 				JsonObject obj;
 
 				obj = getJSonFromFile(&doc, filename);
 
-				obj[F("lastUpdate")] = getEpochStringByParams(now());
+				obj[F("lastUpdate")] = getEpochStringByParams(getLocalTime());
 
 				JsonObject series;
 				if (!obj.containsKey(F("series"))) {
@@ -1027,12 +1056,12 @@ void readTotals(tm nowDt){
 			}
 			if (dce.state.readState == 1 && energyLifetime) {
 				String filename = scopeDirectory + F("/lastStat.jso");
-				String tagName = getEpochStringByParams(now(), (char*) "%d");
+				String tagName = getEpochStringByParams(getLocalTime(), (char*) "%d");
 
 				DynamicJsonDocument doc(CUMULATED_VALUES_HEAP);
 				JsonObject obj = doc.to<JsonObject>();;
 
-				obj[F("lastUpdate")] = getEpochStringByParams(now());
+				obj[F("lastUpdate")] = getEpochStringByParams(getLocalTime());
 
 				if (energyLifetime>0){
 					obj[F("energyLifetime")] = energyLifetime;
@@ -1050,9 +1079,9 @@ void readTotals(tm nowDt){
 					obj[F("energyDaily")] = energyDaily;
 				}
 
-				obj[F("W")] = getEpochStringByParams(now(), (char*) "%Y%W");
-				obj[F("M")] = getEpochStringByParams(now(), (char*) "%Y%m");
-				obj[F("Y")] = getEpochStringByParams(now(), (char*) "%Y");
+				obj[F("W")] = getEpochStringByParams(getLocalTime(), (char*) "%Y%W");
+				obj[F("M")] = getEpochStringByParams(getLocalTime(), (char*) "%Y%m");
+				obj[F("Y")] = getEpochStringByParams(getLocalTime(), (char*) "%Y");
 
 				DEBUG_PRINT(F("Store energyLifetime energy --> "));
 				//				serializeJson(doc, Serial);
@@ -1070,10 +1099,10 @@ void readTotals(tm nowDt){
 						SD.mkdir(dir);
 					}
 
-					String filenamew = dir +'/'+getEpochStringByParams(now(), (char*) "%Y")+ F(".jso");
+					String filenamew = dir +'/'+getEpochStringByParams(getLocalTime(), (char*) "%Y")+ F(".jso");
 
 					objW = getJSonFromFile(&docW, filenamew);
-					objW[getEpochStringByParams(now(), (char*) "%Y%W")] = energyWeekly;
+					objW[getEpochStringByParams(getLocalTime(), (char*) "%Y%W")] = energyWeekly;
 
 					isFileSaveOK = saveJSonToAFile(&docW, filenamew);
 				}
@@ -1086,11 +1115,11 @@ void readTotals(tm nowDt){
 						SD.mkdir(dir);
 					}
 
-					String filenamem = dir +'/'+getEpochStringByParams(now(), (char*) "%Y")+ F(".jso");
+					String filenamem = dir +'/'+getEpochStringByParams(getLocalTime(), (char*) "%Y")+ F(".jso");
 
 					objM = getJSonFromFile(&docM, filenamem);
 
-					objM[getEpochStringByParams(now(), (char*) "%Y%m")] = energyMonthly;
+					objM[getEpochStringByParams(getLocalTime(), (char*) "%Y%m")] = energyMonthly;
 
 					isFileSaveOK = saveJSonToAFile(&docM, filenamem);
 				}
@@ -1102,7 +1131,7 @@ void readTotals(tm nowDt){
 
 					objY = getJSonFromFile(&docY, filenamey);
 
-					objY[getEpochStringByParams(now(), (char*) "%Y")] = energyYearly;
+					objY[getEpochStringByParams(getLocalTime(), (char*) "%Y")] = energyYearly;
 
 					isFileSaveOK = saveJSonToAFile(&docY, filenamey);
 				}
@@ -1141,7 +1170,7 @@ void readProductionDaily(tm nowDt){
 				float val = dsp.value;
 
 				if (val && val > 0) {
-					String dataDirectory = getEpochStringByParams(now(),
+					String dataDirectory = getEpochStringByParams(getLocalTime(),
 							(char*) "%Y%m%d");
 
 					if (i == 0
@@ -1158,7 +1187,7 @@ void readProductionDaily(tm nowDt){
 
 					obj = getJSonFromFile(&doc, filenameDir);
 
-					obj[F("lastUpdate")] = getEpochStringByParams(now());
+					obj[F("lastUpdate")] = getEpochStringByParams(getLocalTime());
 
 					JsonArray data;
 					if (!obj.containsKey(F("data"))) {
@@ -1168,7 +1197,7 @@ void readProductionDaily(tm nowDt){
 					}
 
 					JsonObject objArrayData = data.createNestedObject();
-					objArrayData[F("h")] = getEpochStringByParams(now(),
+					objArrayData[F("h")] = getEpochStringByParams(getLocalTime(),
 							(char*) "%H%M");
 					objArrayData[F("val")] = setPrecision(val, 1);
 					DEBUG_PRINTLN(F("Store production --> "));
@@ -1185,11 +1214,11 @@ void readProductionDaily(tm nowDt){
 
 void leggiProduzioneCallback() {
 	DEBUG_PRINT(F("Thread call (leggiProduzioneCallback) --> "));
-	DEBUG_PRINT(getEpochStringByParams(now()));
+	DEBUG_PRINT(getEpochStringByParams(getLocalTime()));
 	DEBUG_PRINT(F(" MEM --> "));
 	DEBUG_PRINTLN(ESP.getFreeHeap());
 
-	tm nowDt = getDateTimeByParams(now());
+	tm nowDt = getDateTimeByParams(getLocalTime());
 
 	cumulatedEnergyDaily(nowDt);
 	readTotals(nowDt);
@@ -1649,7 +1678,7 @@ void getServerState(){
 	JsonObject rootObj = doc.to<JsonObject>();
 
 	JsonObject net = rootObj.createNestedObject("network");
-	rootObj[F("lastUpdate")] = getEpochStringByParams(now());
+	rootObj[F("lastUpdate")] = getEpochStringByParams(getLocalTime());
 
 	net[F("ip")] = WiFi.localIP().toString();
 	net[F("gw")] = WiFi.gatewayIP().toString();
@@ -1685,7 +1714,7 @@ void getReset(){
 //	JsonObject rootObj = doc.to<JsonObject>();
 //
 //	JsonObject net = rootObj.createNestedObject("network");
-//	rootObj[F("lastUpdate")] = getEpochStringByParams(now());
+//	rootObj[F("lastUpdate")] = getEpochStringByParams(getLocalTime());
 //
 //	net[F("ip")] = WiFi.localIP().toString();
 //	net[F("gw")] = WiFi.gatewayIP().toString();
@@ -1797,11 +1826,14 @@ void updateLocalTimeWithNTPCallback(){
 			DEBUG_PRINTLN(F("Get Inverter Time."));
 			// Get DateTime from inverter
 			Aurora::DataTimeDate timeDate = inverter.readTimeDate();
+			Timezone tz = getTimezoneData(codeDST);
+			tm tempTime = timeDate.getDateTime();
+			time_t currentUTCTime = tz.toUTC(mktime(&tempTime));
 
 			if (timeDate.state.readState){
 				DEBUG_PRINTLN(F("Inverter Time retrieved."));
 				// Set correct time in Arduino Time librery
-				adjustTime(timeDate.epochTime - timeOffset);
+				adjustTime(currentUTCTime); // - timeOffset);
 				fixedTime = true;
 			}else{
 				DEBUG_PRINTLN(F("Inverter Time not retrieved."));
@@ -1809,7 +1841,12 @@ void updateLocalTimeWithNTPCallback(){
 			}
 		}
 
+		Timezone tz = getTimezoneData(codeDST);
+
 		DEBUG_PRINTLN(getEpochStringByParams(now()));
+		DEBUG_PRINTLN(tz.utcIsDST(now()));
+		DEBUG_PRINTLN(getEpochStringByParams(tz.toLocal(now())));
+
 	}
 
 	errorLed(!(fixedTime && sdStarted&& wifiConnected && isFileSaveOK));
@@ -1915,3 +1952,83 @@ void errorLed(bool flag){
 		}
 	}
 }
+
+Timezone getTimezoneData(const String code){
+//	DEBUG_PRINT("CODE DST RETRIVED: ");
+//	DEBUG_PRINTLN(code);
+	if (code=="AETZ"){
+		// Australia Eastern Time Zone (Sydney, Melbourne)
+		TimeChangeRule aEDT = {"AEDT", First, Sun, Oct, 2, 660};    // UTC + 11 hours
+		TimeChangeRule aEST = {"AEST", First, Sun, Apr, 3, 600};    // UTC + 10 hours
+		Timezone tzTmp = Timezone(aEDT, aEST);
+		return tzTmp;
+	}else if (code=="CET"){
+		DEBUG_PRINTLN("CET FIND");
+		// Central European Time (Frankfurt, Paris)
+		TimeChangeRule CEST = {"CEST", Last, Sun, Mar, 2, 120};     // Central European Summer Time
+		TimeChangeRule CET = {"CET ", Last, Sun, Oct, 3, 60};       // Central European Standard Time
+		Timezone tzTmp = Timezone(CEST, CET);
+		return tzTmp;
+	}else if(code=="MSK"){
+		// Moscow Standard Time (MSK, does not observe DST)
+		TimeChangeRule msk = {"MSK", Last, Sun, Mar, 1, 180};
+		Timezone tzTmp = Timezone(msk);
+		return tzTmp;
+	}else if(code=="UK"){
+		// United Kingdom (London, Belfast)
+		TimeChangeRule BST = {"BST", Last, Sun, Mar, 1, 60};        // British Summer Time
+		TimeChangeRule GMT = {"GMT", Last, Sun, Oct, 2, 0};         // Standard Time
+		Timezone tzTmp = Timezone(BST, GMT);
+		return tzTmp;
+	}else if(code=="USCTZ"){
+		// US Central Time Zone (Chicago, Houston)
+		TimeChangeRule usCDT = {"CDT", Second, Sun, Mar, 2, -300};
+		TimeChangeRule usCST = {"CST", First, Sun, Nov, 2, -360};
+		Timezone tzTmp = Timezone(usCDT, usCST);
+		return tzTmp;
+	}else if(code=="USMTZ"){
+		// US Mountain Time Zone (Denver, Salt Lake City)
+		TimeChangeRule usMDT = {"MDT", Second, Sun, Mar, 2, -360};
+		TimeChangeRule usMST = {"MST", First, Sun, Nov, 2, -420};
+		Timezone tzTmp = Timezone(usMDT, usMST);
+		return tzTmp;
+	}else if(code=="ARIZONA"){
+		// Arizona is US Mountain Time Zone but does not use DST
+		TimeChangeRule usMST = {"MST", First, Sun, Nov, 2, -420};
+		Timezone tzTmp = Timezone(usMST);
+		return tzTmp;
+	}else if(code=="USPTZ"){
+		// US Pacific Time Zone (Las Vegas, Los Angeles)
+		TimeChangeRule usPDT = {"PDT", Second, Sun, Mar, 2, -420};
+		TimeChangeRule usPST = {"PST", First, Sun, Nov, 2, -480};
+		Timezone tzTmp = Timezone(usPDT, usPST);
+		return tzTmp;
+	}else if(code=="UTC"){
+		// UTC
+		TimeChangeRule utcRule = {"UTC", Last, Sun, Mar, 1, 0};     // UTC
+		Timezone tzTmp = Timezone(utcRule);
+		return tzTmp;
+	}else{
+		// UTC
+//		DEBUG_PRINT("TIME_OFFSET ");
+		int to = timeOffset/60;
+//		DEBUG_PRINTLN(to);
+		TimeChangeRule utcRule = {"GTM", Last, Sun, Mar, 1, to};     // UTC
+		Timezone tzTmp = Timezone(utcRule);
+		return tzTmp;
+
+	}
+
+
+}
+
+time_t getLocalTime(void){
+	Timezone tz = getTimezoneData(codeDST);
+
+//	DEBUG_PRINTLN(getEpochStringByParams(now()));
+//	DEBUG_PRINTLN(tz.utcIsDST(now()));
+//	DEBUG_PRINTLN(getEpochStringByParams(tz.toLocal(now())));
+//
+	return tz.toLocal(now());
+}
+
