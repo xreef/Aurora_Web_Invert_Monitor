@@ -435,7 +435,7 @@ void setup() {
 		sdStarted = false;
 	  }
 	  sdStarted = true;
-
+	  Serial.println(F("OK"));
 //	if (!SD.begin(CS_PIN, SPI_HALF_SPEED)) {
 //		DEBUG_PRINTLN(F("initialization failed!"));
 //		sdStarted = false;
@@ -2013,7 +2013,7 @@ Timezone getTimezoneData(const String code){
 //		DEBUG_PRINT("TIME_OFFSET ");
 		int to = timeOffset/60;
 //		DEBUG_PRINTLN(to);
-		TimeChangeRule utcRule = {"GTM", Last, Sun, Mar, 1, to};     // UTC
+		TimeChangeRule utcRule = {"GMT", Last, Sun, Mar, 1, to};     // GMT
 		Timezone tzTmp = Timezone(utcRule);
 		return tzTmp;
 

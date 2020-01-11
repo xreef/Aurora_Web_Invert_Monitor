@@ -505,7 +505,7 @@ environment/project/io.sloeber.core.toolChain.release.1470130863/A.UPLOAD.ALTID/
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.UPLOAD.ALTID/value=no_altID
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.UPLOAD.ERASE_CMD/delimiter=;
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.UPLOAD.ERASE_CMD/operation=replace
-environment/project/io.sloeber.core.toolChain.release.1470130863/A.UPLOAD.ERASE_CMD/value=
+environment/project/io.sloeber.core.toolChain.release.1470130863/A.UPLOAD.ERASE_CMD/value=-ca "${A.BUILD.RFCAL_ADDR}" -cz 0x4000
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.UPLOAD.MAXIMUM_DATA_SIZE/delimiter=;
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.UPLOAD.MAXIMUM_DATA_SIZE/operation=replace
 environment/project/io.sloeber.core.toolChain.release.1470130863/A.UPLOAD.MAXIMUM_DATA_SIZE/value=81920
@@ -577,7 +577,7 @@ environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.MAKE_LOC
 environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.MAKE_LOCATION/value=C\:\\eclipse\\sloeber\\arduinoPlugin\\tools\\make\\
 environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.MENU/delimiter=;
 environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.MENU/operation=replace
-environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.MENU/value=cpu\=atmega2560\nCpuFrequency\=80\nDebug\=Disabled\nDebugLevel\=None____\nFlashErase\=none\nFlashSize\=4M2M\nLwIPVariant\=v2mss536\nUploadSpeed\=921600\nVTable\=flash
+environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.MENU/value=cpu\=atmega2560\nCpuFrequency\=80\nDebug\=Disabled\nDebugLevel\=None____\nFlashErase\=sdk\nFlashSize\=4M2M\nLwIPVariant\=v2mss536\nUploadSpeed\=921600\nVTable\=flash
 environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.OBJCOPY/delimiter=;
 environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.OBJCOPY/operation=replace
 environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.OBJCOPY/value=${A.RECIPE.OBJCOPY.HEX.PATTERN}
