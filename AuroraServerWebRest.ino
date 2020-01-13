@@ -1,8 +1,10 @@
 #include "Arduino.h"
 #include <Aurora.h>
-#include <SD.h>
 #define FS_NO_GLOBALS
 #include "FS.h"
+
+#include "SdFat.h"
+//#include <SD.h>
 #include <Thread.h>
 
 #include <ESP8266WiFi.h>
@@ -54,15 +56,15 @@
 #define AURORA_SERVER_DEBUG
 
 // Define where debug output will be printed.
-#define DEBUG_PRINTER Serial1
+#define DEBUG_PRINTER_AI Serial1
 
 // Setup debug printing macros.
 #ifdef AURORA_SERVER_DEBUG
-	#define DEBUG_PRINT(...) { DEBUG_PRINTER.print(__VA_ARGS__); }
-	#define DEBUG_PRINTLN(...) { DEBUG_PRINTER.println(__VA_ARGS__); }
+	#define DEBUG_PRINT_AI(...) { DEBUG_PRINTER_AI.print(__VA_ARGS__); }
+	#define DEBUG_PRINTLN_AI(...) { DEBUG_PRINTER_AI.println(__VA_ARGS__); }
 #else
-	#define DEBUG_PRINT(...) {}
-	#define DEBUG_PRINTLN(...) {}
+	#define DEBUG_PRINT_AI(...) {}
+	#define DEBUG_PRINTLN_AI(...) {}
 #endif
 
 
@@ -210,6 +212,8 @@ int timeOffset = 0;
 
 String codeDST = "GTM";
 
+SdFat SD;
+
 void setup() {
 	pinMode(A0, INPUT);
 
@@ -224,11 +228,11 @@ void setup() {
 		delay(600);
 	#endif
 
-	DEBUG_PRINT(F("Inizializing FS..."));
+	DEBUG_PRINT_AI(F("Inizializing FS..."));
 	if (SPIFFS.begin()){
-		DEBUG_PRINTLN(F("done."));
+		DEBUG_PRINTLN_AI(F("done."));
 	}else{
-		DEBUG_PRINTLN(F("fail."));
+		DEBUG_PRINTLN_AI(F("fail."));
 	}
     //WiFiManager
     //Local intialization. Once its business is done, there is no need to keep it around
@@ -237,7 +241,7 @@ void setup() {
 	WiFi.hostname(hostname);
 	wifi_station_set_hostname(hostname);
 
-	DEBUG_PRINT(F("Open config file..."));
+	DEBUG_PRINT_AI(F("Open config file..."));
 	fs::File configFile = SPIFFS.open(F("/mc/config.txt"), "r");
 	if (configFile) {
 //		 while (configFile.available())
@@ -245,7 +249,7 @@ void setup() {
 //		      Serial1.write(configFile.read());
 //		    }
 //
-		DEBUG_PRINTLN(F("done."));
+		DEBUG_PRINTLN_AI(F("done."));
 		DynamicJsonDocument doc(CONFIG_FILE_HEAP);
 		ArduinoJson::DeserializationError error = deserializeJson(doc, configFile);
 		// close the file:
@@ -253,8 +257,8 @@ void setup() {
 
 		if (error){
 			// if the file didn't open, print an error:
-			DEBUG_PRINT(F("Error parsing JSON "));
-			DEBUG_PRINTLN(error.c_str());
+			DEBUG_PRINT_AI(F("Error parsing JSON "));
+			DEBUG_PRINTLN_AI(error.c_str());
 
 		}else{
 			JsonObject rootObj = doc.as<JsonObject>();
@@ -266,8 +270,8 @@ void setup() {
 				if (isValue){
 					int value = GTM[F("value")];
 
-					DEBUG_PRINT(F("Impostazione GTM+"))
-					DEBUG_PRINTLN(value)
+					DEBUG_PRINT_AI(F("Impostazione GTM+"))
+					DEBUG_PRINTLN_AI(value)
 
 //					timeClient.setTimeOffset(value*60*60);
 					timeOffset = value*60*60;
@@ -283,10 +287,10 @@ void setup() {
 //					const String desc = DST[F("description")];
 
 					codeDST = code;
-					DEBUG_PRINT(F("Impostazione DST "))
-					DEBUG_PRINTLN(code)
-//					DEBUG_PRINT(F("Description DST "))
-//					DEBUG_PRINTLN(desc)
+					DEBUG_PRINT_AI(F("Impostazione DST "))
+					DEBUG_PRINTLN_AI(code)
+//					DEBUG_PRINT_AI(F("Description DST "))
+//					DEBUG_PRINTLN_AI(desc)
 
 //					timeClient.setTimeOffset(value*60*60);
 //					timeOffset = value*60*60;
@@ -311,19 +315,19 @@ void setup() {
 				bool parseSuccess;
 				parseSuccess = _ip.fromString(address);
 				if (parseSuccess) {
-					DEBUG_PRINTLN(F("Address correctly parsed!"));
+					DEBUG_PRINTLN_AI(F("Address correctly parsed!"));
 				}
 
 				IPAddress _gw;
 				parseSuccess = _gw.fromString(gatway);
 				if (parseSuccess) {
-					DEBUG_PRINTLN(F("Gatway correctly parsed!"));
+					DEBUG_PRINTLN_AI(F("Gatway correctly parsed!"));
 				}
 
 				IPAddress _sn;
 				parseSuccess = _sn.fromString(netMask);
 				if (parseSuccess) {
-					DEBUG_PRINTLN(F("Subnet correctly parsed!"));
+					DEBUG_PRINTLN_AI(F("Subnet correctly parsed!"));
 				}
 
 				IPAddress _dns1;
@@ -332,18 +336,18 @@ void setup() {
 				if (dns1 && sizeof(_dns1) > 7 && dns2 && sizeof(_dns2) > 7 ){
 					parseSuccess = _dns1.fromString(dns1);
 					if (parseSuccess) {
-						DEBUG_PRINTLN(F("DNS 1 correctly parsed!"));
+						DEBUG_PRINTLN_AI(F("DNS 1 correctly parsed!"));
 						isDNS = true;
 					}
 
 					parseSuccess = _dns2.fromString(dns2);
 					if (parseSuccess) {
-						DEBUG_PRINTLN(F("DNS 2 correctly parsed!"));
+						DEBUG_PRINTLN_AI(F("DNS 2 correctly parsed!"));
 					}
 					//end-block2
 				}
 
-				DEBUG_PRINT(F("Set static data..."));
+				DEBUG_PRINT_AI(F("Set static data..."));
 				if (isDNS){
 					wifiManager.setSTAStaticIPConfig(_ip, _gw, _sn, _dns1, _dns2);
 				}else{
@@ -356,11 +360,11 @@ void setup() {
 				// IPAddress(85, 37, 17, 12), IPAddress(8, 8, 8, 8)
 	//
 	//		    emailSend.setEMailLogin("smtp.mischianti@gmail.com");
-				DEBUG_PRINTLN(F("done."));
+				DEBUG_PRINTLN_AI(F("done."));
 			}
 		}
 	}else{
-		DEBUG_PRINTLN(F("fail."));
+		DEBUG_PRINTLN_AI(F("fail."));
 	}
 
 	//reset saved settings
@@ -380,28 +384,28 @@ void setup() {
 
 
     //if you get here you have connected to the WiFi
-    DEBUG_PRINTLN(F("WIFIManager connected!"));
+    DEBUG_PRINTLN_AI(F("WIFIManager connected!"));
 
-    DEBUG_PRINT(F("IP --> "));
-    DEBUG_PRINTLN(WiFi.localIP());
-    DEBUG_PRINT(F("GW --> "));
-    DEBUG_PRINTLN(WiFi.gatewayIP());
-    DEBUG_PRINT(F("SM --> "));
-    DEBUG_PRINTLN(WiFi.subnetMask());
+    DEBUG_PRINT_AI(F("IP --> "));
+    DEBUG_PRINTLN_AI(WiFi.localIP());
+    DEBUG_PRINT_AI(F("GW --> "));
+    DEBUG_PRINTLN_AI(WiFi.gatewayIP());
+    DEBUG_PRINT_AI(F("SM --> "));
+    DEBUG_PRINTLN_AI(WiFi.subnetMask());
 
-    DEBUG_PRINT(F("DNS 1 --> "));
-    DEBUG_PRINTLN(WiFi.dnsIP(0));
+    DEBUG_PRINT_AI(F("DNS 1 --> "));
+    DEBUG_PRINTLN_AI(WiFi.dnsIP(0));
 
-    DEBUG_PRINT(F("DNS 2 --> "));
-    DEBUG_PRINTLN(WiFi.dnsIP(1));
+    DEBUG_PRINT_AI(F("DNS 2 --> "));
+    DEBUG_PRINTLN_AI(WiFi.dnsIP(1));
 
 
-	DEBUG_PRINT(F("Recreate settings file..."));
+	DEBUG_PRINT_AI(F("Recreate settings file..."));
 	fs::File settingsFile = SPIFFS.open(F("/settings.json"), "w");
 	if (!settingsFile) {
-	    DEBUG_PRINTLN(F("fail."));
+	    DEBUG_PRINTLN_AI(F("fail."));
 	}else{
-		DEBUG_PRINTLN(F("done."));
+		DEBUG_PRINTLN_AI(F("done."));
 		DynamicJsonDocument doc(2048);
 		JsonObject postObj = doc.to<JsonObject>();
 		postObj[F("localIP")] = WiFi.localIP().toString();
@@ -417,16 +421,16 @@ void setup() {
 		settingsFile.close();
 
 //		serializeJson(doc, settingsFile);
-	    DEBUG_PRINTLN(F("success."));
+	    DEBUG_PRINTLN_AI(F("success."));
 	}
 
 	// Start inverter serial
-	DEBUG_PRINT(F("Initializing Inverter serial..."));
+	DEBUG_PRINT_AI(F("Initializing Inverter serial..."));
 	inverter.begin();
-	DEBUG_PRINTLN(F("initialization done."));
+	DEBUG_PRINTLN_AI(F("initialization done."));
 
 	// Start inizialization of SD cart
-	DEBUG_PRINT(F("Initializing SD card..."));
+	DEBUG_PRINT_AI(F("Initializing SD card..."));
 
 	  // Initialize SD library
 	  while (!SD.begin()) {
@@ -437,7 +441,7 @@ void setup() {
 	  sdStarted = true;
 	  Serial.println(F("OK"));
 //	if (!SD.begin(CS_PIN, SPI_HALF_SPEED)) {
-//		DEBUG_PRINTLN(F("initialization failed!"));
+//		DEBUG_PRINTLN_AI(F("initialization failed!"));
 //		sdStarted = false;
 //		// return to stop all
 //		return;
@@ -445,7 +449,7 @@ void setup() {
 //		sdStarted = true;
 //
 //	}
-	DEBUG_PRINTLN(F("Inizialization done."));
+	DEBUG_PRINTLN_AI(F("Inizialization done."));
 
 	ManageStaticData.onRun(manageStaticDataCallback);
 	ManageStaticData.setInterval(STATIC_DATA_INTERVAL * 60 * 1000);
@@ -480,7 +484,7 @@ void setup() {
 
 	restServerRouting();
 	httpRestServer.begin();
-    DEBUG_PRINTLN(F("HTTP REST Server Started"));
+    DEBUG_PRINTLN_AI(F("HTTP REST Server Started"));
 
 #ifdef SERVER_HTTPS
 	httpServer.setRSACert(new BearSSLX509List(serverCert), new BearSSLPrivateKey(serverKey));
@@ -488,32 +492,32 @@ void setup() {
 	serverRouting();
 	httpServer.begin();
 #ifdef SERVER_HTTPS
-    DEBUG_PRINTLN(F("HTTPS Server Started"));
+    DEBUG_PRINTLN_AI(F("HTTPS Server Started"));
 #else
-    DEBUG_PRINTLN(F("HTTP Server Started"));
+    DEBUG_PRINTLN_AI(F("HTTP Server Started"));
 #endif
 
 #ifdef SERVER_FTP
 //    SPIFFS.format();
     ftpSrv.begin("aurora","aurora");    //username, password for ftp.  set ports in ESP8266FtpServer.h  (default 21, 50009 for PASV)
-    DEBUG_PRINTLN(F("FTP Server Started"));
+    DEBUG_PRINTLN_AI(F("FTP Server Started"));
 #endif
 
     if (!MDNS.begin(hostname)) {             // Start the mDNS responder for esp8266.local
-    	DEBUG_PRINTLN(F("Error setting up mDNS responder!"));
+    	DEBUG_PRINTLN_AI(F("Error setting up mDNS responder!"));
     }
-    DEBUG_PRINT(hostname);
-    DEBUG_PRINTLN(F(" --> mDNS responder started"));
+    DEBUG_PRINT_AI(hostname);
+    DEBUG_PRINTLN_AI(F(" --> mDNS responder started"));
 
-    DEBUG_PRINT(F("ERROR --> "));
-    DEBUG_PRINTLN(!(fixedTime && sdStarted&& wifiConnected));
+    DEBUG_PRINT_AI(F("ERROR --> "));
+    DEBUG_PRINTLN_AI(!(fixedTime && sdStarted&& wifiConnected));
 
 	errorLed(!(fixedTime && sdStarted&& wifiConnected && isFileSaveOK));
 
 //    digitalWrite(ERROR_PIN, !(fixedTime && sdStarted&& wifiConnected && isFileSaveOK));
 
 	if (fixedTime && sdStarted){
-		DEBUG_PRINTLN(F("FIRST LOAD..."))
+		DEBUG_PRINTLN_AI(F("FIRST LOAD..."))
 		leggiStatoInverterCallback();
 		leggiStatoBatteriaCallback();
 		manageStaticDataCallback();
@@ -559,20 +563,20 @@ void loop() {
 File myFileSDCart; // @suppress("Ambiguous problem")
 
 void leggiStatoBatteriaCallback() {
-	DEBUG_PRINT(F("Thread call (leggiStatoBatteriaCallback) --> "));
-	DEBUG_PRINT(getEpochStringByParams(getLocalTime()));
-	DEBUG_PRINT(F(" MEM --> "));
-	DEBUG_PRINTLN(ESP.getFreeHeap())
+	DEBUG_PRINT_AI(F("Thread call (leggiStatoBatteriaCallback) --> "));
+	DEBUG_PRINT_AI(getEpochStringByParams(getLocalTime()));
+	DEBUG_PRINT_AI(F(" MEM --> "));
+	DEBUG_PRINTLN_AI(ESP.getFreeHeap())
 
 	float bv = getBatteryVoltage();
-	DEBUG_PRINT(F(" BATTERY --> "));
-	DEBUG_PRINTLN(bv);
-	DEBUG_PRINTLN(bv>2);
-	DEBUG_PRINTLN(bv>1);
+	DEBUG_PRINT_AI(F(" BATTERY --> "));
+	DEBUG_PRINTLN_AI(bv);
+	DEBUG_PRINTLN_AI(bv>2);
+	DEBUG_PRINTLN_AI(bv>1);
 	if (bv>1) {
 		String scopeDirectory = F("battery");
-		if (!SD.exists(scopeDirectory)) {
-			SD.mkdir(scopeDirectory);
+		if (!SD.exists(scopeDirectory.c_str())) {
+			SD.mkdir(scopeDirectory.c_str());
 		}
 		String filename = scopeDirectory +"/"+ getEpochStringByParams(getLocalTime(), (char*) "%Y%m%d") + F(".jso");
 
@@ -592,7 +596,7 @@ void leggiStatoBatteriaCallback() {
 
 		data[getEpochStringByParams(getLocalTime(),(char*) "%H%M")]=bv;
 
-		DEBUG_PRINTLN(F("done."));
+		DEBUG_PRINTLN_AI(F("done."));
 
 		isFileSaveOK = saveJSonToAFile(&doc, filename);
 
@@ -601,23 +605,23 @@ void leggiStatoBatteriaCallback() {
 }
 
 void leggiStatoInverterCallback() {
-	DEBUG_PRINT(F("Thread call (LeggiStatoInverterCallback) --> "));
-	DEBUG_PRINT(getEpochStringByParams(getLocalTime()));
-	DEBUG_PRINT(F(" MEM --> "));
-	DEBUG_PRINTLN(ESP.getFreeHeap())
+	DEBUG_PRINT_AI(F("Thread call (LeggiStatoInverterCallback) --> "));
+	DEBUG_PRINT_AI(getEpochStringByParams(getLocalTime()));
+	DEBUG_PRINT_AI(F(" MEM --> "));
+	DEBUG_PRINTLN_AI(ESP.getFreeHeap())
 
 	Aurora::DataState dataState = inverter.readState();
-	DEBUG_PRINT(F("Read state --> "));
-	DEBUG_PRINTLN(dataState.state.readState);
+	DEBUG_PRINT_AI(F("Read state --> "));
+	DEBUG_PRINTLN_AI(dataState.state.readState);
 
 	if (dataState.state.readState == 1) {
-		DEBUG_PRINTLN(F("done."));
+		DEBUG_PRINTLN_AI(F("done."));
 
-		DEBUG_PRINT(F("Create json..."));
+		DEBUG_PRINT_AI(F("Create json..."));
 
 		String scopeDirectory = F("alarms");
-		if (!SD.exists(scopeDirectory)) {
-			SD.mkdir(scopeDirectory);
+		if (!SD.exists(scopeDirectory.c_str())) {
+			SD.mkdir(scopeDirectory.c_str());
 		}
 
 		String filename = scopeDirectory + F("/alarStat.jso");
@@ -639,7 +643,7 @@ void leggiStatoInverterCallback() {
 		rootObj[F("inverterStateParam")] = dataState.inverterState;
 		rootObj[F("inverterState")] = dataState.getInverterState();
 
-		DEBUG_PRINTLN(F("done."));
+		DEBUG_PRINTLN_AI(F("done."));
 
 		isFileSaveOK = saveJSonToAFile(&doc, filename);
 
@@ -682,24 +686,24 @@ void leggiStatoInverterCallback() {
 
 			byte ldState = lastData[F("isp")];
 
-			DEBUG_PRINT(F("Last data state --> "));
-			DEBUG_PRINTLN(ldState);
+			DEBUG_PRINT_AI(F("Last data state --> "));
+			DEBUG_PRINTLN_AI(ldState);
 
-			DEBUG_PRINT(F("Data state --> "));
-			DEBUG_PRINTLN(dataState.inverterState);
+			DEBUG_PRINT_AI(F("Data state --> "));
+			DEBUG_PRINTLN_AI(dataState.inverterState);
 
-			DEBUG_PRINT(F("Last data vs data state is different --> "));
-			DEBUG_PRINTLN(lastData[F("isp")] != dataState.inverterState);
+			DEBUG_PRINT_AI(F("Last data vs data state is different --> "));
+			DEBUG_PRINTLN_AI(lastData[F("isp")] != dataState.inverterState);
 
 
-			DEBUG_PRINT(F("Inverter problem --> "));
-			DEBUG_PRINTLN(inverterProblem);
+			DEBUG_PRINT_AI(F("Inverter problem --> "));
+			DEBUG_PRINTLN_AI(inverterProblem);
 
-			DEBUG_PRINT(F("firstElement --> "));
-			DEBUG_PRINTLN(firstElement);
+			DEBUG_PRINT_AI(F("firstElement --> "));
+			DEBUG_PRINTLN_AI(firstElement);
 
-			DEBUG_PRINT(F("Variation From Previous --> "));
-			DEBUG_PRINTLN(variationFromPrevious);
+			DEBUG_PRINT_AI(F("Variation From Previous --> "));
+			DEBUG_PRINTLN_AI(variationFromPrevious);
 
 			if ((inverterProblem && firstElement)
 					|| (!firstElement && variationFromPrevious)) {
@@ -723,27 +727,27 @@ void leggiStatoInverterCallback() {
 				objArrayData[F("isp")] = dataState.inverterState;
 				//			objArrayData["is"] = dataState.getInverterState();
 
-				DEBUG_PRINTLN(F("Store alarms --> "));
+				DEBUG_PRINTLN_AI(F("Store alarms --> "));
 				//				serializeJson(doc, Serial);
-				DEBUG_PRINT(docAS.memoryUsage());
-				DEBUG_PRINTLN();
+				DEBUG_PRINT_AI(docAS.memoryUsage());
+				DEBUG_PRINTLN_AI();
 
-				if (!SD.exists(scopeDirectory + '/' + dayDirectory)) {
-					SD.mkdir(scopeDirectory + '/' + dayDirectory);
+				if (!SD.exists((scopeDirectory + '/' + dayDirectory).c_str())) {
+					SD.mkdir((scopeDirectory + '/' + dayDirectory).c_str());
 				}
 
 				isFileSaveOK = saveJSonToAFile(&docAS, filenameAL);
 
-				DEBUG_PRINT(F("Open config file..."));
+				DEBUG_PRINT_AI(F("Open config file..."));
 				fs::File configFile = SPIFFS.open(F("/mc/config.txt"), "r");
 				if (configFile) {
-				    DEBUG_PRINTLN(F("done."));
+				    DEBUG_PRINTLN_AI(F("done."));
 					DynamicJsonDocument doc(CONFIG_FILE_HEAP);
 					DeserializationError error = deserializeJson(doc, configFile);
 					if (error) {
 						// if the file didn't open, print an error:
-						DEBUG_PRINT(F("Error parsing JSON "));
-						DEBUG_PRINTLN(error.c_str());
+						DEBUG_PRINT_AI(F("Error parsing JSON "));
+						DEBUG_PRINTLN_AI(error.c_str());
 					}
 
 					// close the file:
@@ -751,8 +755,8 @@ void leggiStatoInverterCallback() {
 
 					JsonObject rootObj = doc.as<JsonObject>();
 
-				    DEBUG_PRINT(F("After read config check serverSMTP and emailNotification "));
-				    DEBUG_PRINTLN(rootObj.containsKey(F("serverSMTP")) && rootObj.containsKey(F("emailNotification")));
+				    DEBUG_PRINT_AI(F("After read config check serverSMTP and emailNotification "));
+				    DEBUG_PRINTLN_AI(rootObj.containsKey(F("serverSMTP")) && rootObj.containsKey(F("emailNotification")));
 
 					if (rootObj.containsKey(F("serverSMTP")) && rootObj.containsKey(F("emailNotification"))){
 //						JsonObject serverConfig = rootObj["server"];
@@ -761,8 +765,8 @@ void leggiStatoInverterCallback() {
 
 						bool isNotificationEnabled = (emailNotification.containsKey(F("isNotificationEnabled")))?emailNotification[F("isNotificationEnabled")]:false;
 
-					    DEBUG_PRINT(F("isNotificationEnabled "));
-					    DEBUG_PRINTLN(isNotificationEnabled);
+					    DEBUG_PRINT_AI(F("isNotificationEnabled "));
+					    DEBUG_PRINTLN_AI(isNotificationEnabled);
 
 						if (isNotificationEnabled){
 							const char* serverSMTPAddr = serverSMTP[F("server")];
@@ -776,16 +780,16 @@ void leggiStatoInverterCallback() {
 							const char* fromSMTP = serverSMTP[F("from")];
 							emailSend.setEMailFrom(fromSMTP);
 
-							DEBUG_PRINT(F("server "));
-							DEBUG_PRINTLN(serverSMTPAddr);
-							DEBUG_PRINT(F("port "));
-							DEBUG_PRINTLN(portSMTP);
-							DEBUG_PRINT(F("login "));
-							DEBUG_PRINTLN(loginSMTP);
-							DEBUG_PRINT(F("password "));
-							DEBUG_PRINTLN(passwordSMTP);
-							DEBUG_PRINT(F("from "));
-							DEBUG_PRINTLN(fromSMTP);
+							DEBUG_PRINT_AI(F("server "));
+							DEBUG_PRINTLN_AI(serverSMTPAddr);
+							DEBUG_PRINT_AI(F("port "));
+							DEBUG_PRINTLN_AI(portSMTP);
+							DEBUG_PRINT_AI(F("login "));
+							DEBUG_PRINTLN_AI(loginSMTP);
+							DEBUG_PRINT_AI(F("password "));
+							DEBUG_PRINTLN_AI(passwordSMTP);
+							DEBUG_PRINT_AI(F("from "));
+							DEBUG_PRINTLN_AI(fromSMTP);
 
 							EMailSender::EMailMessage message;
 							const String sub = emailNotification[F("subject")];
@@ -793,7 +797,7 @@ void leggiStatoInverterCallback() {
 
 							JsonArray emailList = emailNotification[F("emailList")];
 
-						    DEBUG_PRINT(F("Email list "));
+						    DEBUG_PRINT_AI(F("Email list "));
 
 							for (uint8_t i=0; i<emailList.size(); i++){
 								JsonObject emailElem = emailList[i];
@@ -808,17 +812,17 @@ void leggiStatoInverterCallback() {
 								const String ch2 = emailElem[F("ch2")];
 								const String state = emailElem[F("state")];
 
-							    DEBUG_PRINT(F("State value "));
-							    DEBUG_PRINTLN(state);
+							    DEBUG_PRINT_AI(F("State value "));
+							    DEBUG_PRINTLN_AI(state);
 
-							    DEBUG_PRINT(F("State value on_problem comparison "));
-							    DEBUG_PRINTLN(state==F("on_problem"));
+							    DEBUG_PRINT_AI(F("State value on_problem comparison "));
+							    DEBUG_PRINTLN_AI(state==F("on_problem"));
 
-							    DEBUG_PRINT(F("Alarm value "));
-							    DEBUG_PRINTLN(alarm);
+							    DEBUG_PRINT_AI(F("Alarm value "));
+							    DEBUG_PRINTLN_AI(alarm);
 
-							    DEBUG_PRINT(F("Alarm all comparison "));
-							    DEBUG_PRINTLN(alarm==F("all"));
+							    DEBUG_PRINT_AI(F("Alarm all comparison "));
+							    DEBUG_PRINTLN_AI(alarm==F("all"));
 
 								bool allNotification = (
 										(alarm==F("all") && asp != dataState.alarmState)
@@ -840,11 +844,11 @@ void leggiStatoInverterCallback() {
 										(state==F("on_problem") && (dataState.inverterState != 2 && dataState.inverterState != 1))
 								);
 
-							    DEBUG_PRINT(F("Check allNotification "));
-							    DEBUG_PRINTLN(allNotification);
+							    DEBUG_PRINT_AI(F("Check allNotification "));
+							    DEBUG_PRINTLN_AI(allNotification);
 
-							    DEBUG_PRINT(F("Check onProblem "));
-							    DEBUG_PRINTLN(onProblem);
+							    DEBUG_PRINT_AI(F("Check onProblem "));
+							    DEBUG_PRINTLN_AI(onProblem);
 
 
 								if (
@@ -862,12 +866,12 @@ void leggiStatoInverterCallback() {
 
 									EMailSender::Response resp = emailSend.send(emailElem[F("email")], message);
 
-									DEBUG_PRINTLN(F("Sending status: "));
+									DEBUG_PRINTLN_AI(F("Sending status: "));
 									const String em = emailElem[F("email")];
-									DEBUG_PRINTLN(em);
-									DEBUG_PRINTLN(resp.status);
-									DEBUG_PRINTLN(resp.code);
-									DEBUG_PRINTLN(resp.desc);
+									DEBUG_PRINTLN_AI(em);
+									DEBUG_PRINTLN_AI(resp.status);
+									DEBUG_PRINTLN_AI(resp.code);
+									DEBUG_PRINTLN_AI(resp.desc);
 								}
 
 
@@ -875,7 +879,7 @@ void leggiStatoInverterCallback() {
 						}
 					}
 				}else{
-				    DEBUG_PRINTLN(F("fail."));
+				    DEBUG_PRINTLN_AI(F("fail."));
 				}
 
 			}
@@ -887,43 +891,43 @@ void leggiStatoInverterCallback() {
 }
 
 void manageStaticDataCallback () {
-	DEBUG_PRINT(F("Thread call (manageStaticDataCallback) --> "));
-	DEBUG_PRINT(getEpochStringByParams(getLocalTime()));
-	DEBUG_PRINT(F(" MEM --> "));
-	DEBUG_PRINTLN(ESP.getFreeHeap())
+	DEBUG_PRINT_AI(F("Thread call (manageStaticDataCallback) --> "));
+	DEBUG_PRINT_AI(getEpochStringByParams(getLocalTime()));
+	DEBUG_PRINT_AI(F(" MEM --> "));
+	DEBUG_PRINTLN_AI(ESP.getFreeHeap())
 
-	DEBUG_PRINT(F("Data version read... "));
+	DEBUG_PRINT_AI(F("Data version read... "));
 	Aurora::DataVersion dataVersion = inverter.readVersion();
-	DEBUG_PRINTLN(dataVersion.state.readState);
+	DEBUG_PRINTLN_AI(dataVersion.state.readState);
 
-	DEBUG_PRINT(F("Firmware release read... "));
+	DEBUG_PRINT_AI(F("Firmware release read... "));
 	Aurora::DataFirmwareRelease firmwareRelease = inverter.readFirmwareRelease();
-	DEBUG_PRINTLN(firmwareRelease.state.readState);
+	DEBUG_PRINTLN_AI(firmwareRelease.state.readState);
 
-	DEBUG_PRINT(F("System SN read... "));
+	DEBUG_PRINT_AI(F("System SN read... "));
 	Aurora::DataSystemSerialNumber systemSN = inverter.readSystemSerialNumber();
-	DEBUG_PRINTLN(systemSN.readState);
+	DEBUG_PRINTLN_AI(systemSN.readState);
 
-	DEBUG_PRINT(F("Manufactoru Week Year read... "));
+	DEBUG_PRINT_AI(F("Manufactoru Week Year read... "));
 	Aurora::DataManufacturingWeekYear manufactoryWeekYear = inverter.readManufacturingWeekYear();
-	DEBUG_PRINTLN(manufactoryWeekYear.state.readState);
+	DEBUG_PRINTLN_AI(manufactoryWeekYear.state.readState);
 
-	DEBUG_PRINT(F("systemPN read... "));
+	DEBUG_PRINT_AI(F("systemPN read... "));
 	Aurora::DataSystemPN systemPN = inverter.readSystemPN();
-	DEBUG_PRINTLN(systemPN.readState);
+	DEBUG_PRINTLN_AI(systemPN.readState);
 
-	DEBUG_PRINT(F("configStatus read... "));
+	DEBUG_PRINT_AI(F("configStatus read... "));
 	Aurora::DataConfigStatus configStatus = inverter.readConfig();
-	DEBUG_PRINTLN(configStatus.state.readState);
+	DEBUG_PRINTLN_AI(configStatus.state.readState);
 
 	if (dataVersion.state.readState == 1){
-    	DEBUG_PRINTLN(F("done."));
+    	DEBUG_PRINTLN_AI(F("done."));
 
-    	DEBUG_PRINT(F("Create json..."));
+    	DEBUG_PRINT_AI(F("Create json..."));
 
 		String scopeDirectory = F("static");
-		if (!SD.exists(scopeDirectory)){
-			SD.mkdir(scopeDirectory);
+		if (!SD.exists(scopeDirectory.c_str())){
+			SD.mkdir(scopeDirectory.c_str());
 		}
 
 		String filename = scopeDirectory+ F("/invinfo.jso");
@@ -959,7 +963,7 @@ void manageStaticDataCallback () {
 		cs[F("code")] = configStatus.configStatus;
 		cs[F("desc")] = configStatus.getConfigStatus();
 
-		DEBUG_PRINTLN(F("done."));
+		DEBUG_PRINTLN_AI(F("done."));
 
 		isFileSaveOK = saveJSonToAFile(&doc, filename);
 	}
@@ -972,14 +976,14 @@ void cumulatedEnergyDaily(tm nowDt){
 	if (nowDt.tm_min % CUMULATIVE_INTERVAL == 0) {
 		Aurora::DataCumulatedEnergy dce = inverter.readCumulatedEnergy(
 		CUMULATED_DAILY_ENERGY);
-		DEBUG_PRINT(F("Read state --> "));
-		DEBUG_PRINTLN(dce.state.readState);
+		DEBUG_PRINT_AI(F("Read state --> "));
+		DEBUG_PRINTLN_AI(dce.state.readState);
 
 		if (dce.state.readState == 1) {
 			unsigned long energy = dce.energy;
 
-			if (!SD.exists(scopeDirectory)) {
-				SD.mkdir(scopeDirectory);
+			if (!SD.exists(scopeDirectory.c_str())) {
+				SD.mkdir(scopeDirectory.c_str());
 			}
 
 			Aurora::DataDSP dsp = inverter.readDSP(DSP_POWER_PEAK_TODAY_ALL);
@@ -1009,10 +1013,10 @@ void cumulatedEnergyDaily(tm nowDt){
 				dayData[F("pow")] = energy;
 				dayData[F("powPeak")] = setPrecision(powerPeak, 1);
 
-				DEBUG_PRINT(F("Store cumulated energy --> "));
+				DEBUG_PRINT_AI(F("Store cumulated energy --> "));
 //				serializeJson(doc, Serial);
-				DEBUG_PRINT(doc.memoryUsage());
-				DEBUG_PRINTLN();
+				DEBUG_PRINT_AI(doc.memoryUsage());
+				DEBUG_PRINTLN_AI();
 
 				isFileSaveOK = saveJSonToAFile(&doc, filename);
 			}
@@ -1026,33 +1030,33 @@ void readTotals(tm nowDt){
 	// Save cumulative data
 	if (nowDt.tm_min % CUMULATIVE_TOTAL_INTERVAL == 0) {
 
-		DEBUG_PRINTLN(F("Get all totals."));
+		DEBUG_PRINTLN_AI(F("Get all totals."));
 		Aurora::DataCumulatedEnergy dce = inverter.readCumulatedEnergy(
 		CUMULATED_TOTAL_ENERGY_LIFETIME);
 		unsigned long energyLifetime = dce.energy;
-		DEBUG_PRINTLN(energyLifetime);
+		DEBUG_PRINTLN_AI(energyLifetime);
 
 		if (dce.state.readState == 1) {
 
 			dce = inverter.readCumulatedEnergy(CUMULATED_YEARLY_ENERGY);
 			unsigned long energyYearly = dce.energy;
-			DEBUG_PRINTLN(energyYearly);
+			DEBUG_PRINTLN_AI(energyYearly);
 
 			dce = inverter.readCumulatedEnergy(CUMULATED_MONTHLY_ENERGY);
 			unsigned long energyMonthly = dce.energy;
-			DEBUG_PRINTLN(energyMonthly);
+			DEBUG_PRINTLN_AI(energyMonthly);
 
 			dce = inverter.readCumulatedEnergy(CUMULATED_WEEKLY_ENERGY);
 			unsigned long energyWeekly = dce.energy;
-			DEBUG_PRINTLN(energyWeekly);
+			DEBUG_PRINTLN_AI(energyWeekly);
 
 			dce = inverter.readCumulatedEnergy(CUMULATED_DAILY_ENERGY);
 			unsigned long energyDaily = dce.energy;
-			DEBUG_PRINTLN(energyDaily);
+			DEBUG_PRINTLN_AI(energyDaily);
 
 
-			if (!SD.exists(scopeDirectory)) {
-				SD.mkdir(scopeDirectory);
+			if (!SD.exists(scopeDirectory.c_str())) {
+				SD.mkdir(scopeDirectory.c_str());
 			}
 			if (dce.state.readState == 1 && energyLifetime) {
 				String filename = scopeDirectory + F("/lastStat.jso");
@@ -1083,10 +1087,10 @@ void readTotals(tm nowDt){
 				obj[F("M")] = getEpochStringByParams(getLocalTime(), (char*) "%Y%m");
 				obj[F("Y")] = getEpochStringByParams(getLocalTime(), (char*) "%Y");
 
-				DEBUG_PRINT(F("Store energyLifetime energy --> "));
+				DEBUG_PRINT_AI(F("Store energyLifetime energy --> "));
 				//				serializeJson(doc, Serial);
-				DEBUG_PRINT(doc.memoryUsage());
-				DEBUG_PRINTLN();
+				DEBUG_PRINT_AI(doc.memoryUsage());
+				DEBUG_PRINTLN_AI();
 
 				isFileSaveOK = saveJSonToAFile(&doc, filename);
 
@@ -1095,8 +1099,8 @@ void readTotals(tm nowDt){
 					JsonObject objW;
 
 					String dir = scopeDirectory + F("/weeks");
-					if (!SD.exists(dir)) {
-						SD.mkdir(dir);
+					if (!SD.exists(dir.c_str())) {
+						SD.mkdir(dir.c_str());
 					}
 
 					String filenamew = dir +'/'+getEpochStringByParams(getLocalTime(), (char*) "%Y")+ F(".jso");
@@ -1111,8 +1115,8 @@ void readTotals(tm nowDt){
 					JsonObject objM;
 
 					String dir = scopeDirectory + F("/months");
-					if (!SD.exists(dir)) {
-						SD.mkdir(dir);
+					if (!SD.exists(dir.c_str())) {
+						SD.mkdir(dir.c_str());
 					}
 
 					String filenamem = dir +'/'+getEpochStringByParams(getLocalTime(), (char*) "%Y")+ F(".jso");
@@ -1144,8 +1148,8 @@ void readTotals(tm nowDt){
 
 void readProductionDaily(tm nowDt){
 	String scopeDirectory = F("product");
-	if (!SD.exists(scopeDirectory)) {
-		SD.mkdir(scopeDirectory);
+	if (!SD.exists(scopeDirectory.c_str())) {
+		SD.mkdir(scopeDirectory.c_str());
 	}
 	for (int i = 0; i < 3; i++) {
 		if (nowDt.tm_min % DAILY_INTERVAL == 0) {
@@ -1164,8 +1168,8 @@ void readProductionDaily(tm nowDt){
 			}
 
 			Aurora::DataDSP dsp = inverter.readDSP(read);
-			DEBUG_PRINT(F("Read state --> "));
-			DEBUG_PRINTLN(dsp.state.readState);
+			DEBUG_PRINT_AI(F("Read state --> "));
+			DEBUG_PRINTLN_AI(dsp.state.readState);
 			if (dsp.state.readState == 1) {
 				float val = dsp.value;
 
@@ -1174,9 +1178,8 @@ void readProductionDaily(tm nowDt){
 							(char*) "%Y%m%d");
 
 					if (i == 0
-							&& !SD.exists(
-									scopeDirectory + '/' + dataDirectory)) {
-						SD.mkdir(scopeDirectory + '/' + dataDirectory);
+							&& !SD.exists((scopeDirectory + '/' + dataDirectory).c_str())) {
+						SD.mkdir((scopeDirectory + '/' + dataDirectory).c_str());
 					}
 
 					String filenameDir = scopeDirectory + "/" + dataDirectory
@@ -1200,9 +1203,9 @@ void readProductionDaily(tm nowDt){
 					objArrayData[F("h")] = getEpochStringByParams(getLocalTime(),
 							(char*) "%H%M");
 					objArrayData[F("val")] = setPrecision(val, 1);
-					DEBUG_PRINTLN(F("Store production --> "));
-					DEBUG_PRINT(doc.memoryUsage());
-					DEBUG_PRINTLN();
+					DEBUG_PRINTLN_AI(F("Store production --> "));
+					DEBUG_PRINT_AI(doc.memoryUsage());
+					DEBUG_PRINTLN_AI();
 
 					isFileSaveOK = saveJSonToAFile(&doc, filenameDir);
 				}
@@ -1213,10 +1216,10 @@ void readProductionDaily(tm nowDt){
 }
 
 void leggiProduzioneCallback() {
-	DEBUG_PRINT(F("Thread call (leggiProduzioneCallback) --> "));
-	DEBUG_PRINT(getEpochStringByParams(getLocalTime()));
-	DEBUG_PRINT(F(" MEM --> "));
-	DEBUG_PRINTLN(ESP.getFreeHeap());
+	DEBUG_PRINT_AI(F("Thread call (leggiProduzioneCallback) --> "));
+	DEBUG_PRINT_AI(getEpochStringByParams(getLocalTime()));
+	DEBUG_PRINT_AI(F(" MEM --> "));
+	DEBUG_PRINTLN_AI(ESP.getFreeHeap());
 
 	tm nowDt = getDateTimeByParams(getLocalTime());
 
@@ -1241,8 +1244,8 @@ JsonObject getJSonFromFile(DynamicJsonDocument *doc, String filename, bool force
 		DeserializationError error = deserializeJson(*doc, myFileSDCart);
 		if (error) {
 			// if the file didn't open, print an error:
-			DEBUG_PRINT(F("Error parsing JSON "));
-			DEBUG_PRINTLN(error.c_str());
+			DEBUG_PRINT_AI(F("Error parsing JSON "));
+			DEBUG_PRINTLN_AI(error.c_str());
 
 			if (forceCleanONJsonError){
 				return doc->to<JsonObject>();
@@ -1255,40 +1258,40 @@ JsonObject getJSonFromFile(DynamicJsonDocument *doc, String filename, bool force
 		return doc->as<JsonObject>();
 	} else {
 		// if the file didn't open, print an error:
-		DEBUG_PRINT(F("Error opening (or file not exists) "));
-		DEBUG_PRINTLN(filename);
+		DEBUG_PRINT_AI(F("Error opening (or file not exists) "));
+		DEBUG_PRINTLN_AI(filename);
 
-		DEBUG_PRINTLN(F("Empty json created"));
+		DEBUG_PRINTLN_AI(F("Empty json created"));
 		return doc->to<JsonObject>();
 	}
 
 }
 
 bool saveJSonToAFile(DynamicJsonDocument *doc, String filename) {
-	SD.remove(filename);
+	SD.remove(filename.c_str());
 
 	// open the file. note that only one file can be open at a time,
 	// so you have to close this one before opening another.
-	DEBUG_PRINTLN(F("Open file in write mode"));
+	DEBUG_PRINTLN_AI(F("Open file in write mode"));
 	myFileSDCart = SD.open(filename, FILE_WRITE);
 	if (myFileSDCart) {
-		DEBUG_PRINT(F("Filename --> "));
-		DEBUG_PRINTLN(filename);
+		DEBUG_PRINT_AI(F("Filename --> "));
+		DEBUG_PRINTLN_AI(filename);
 
-		DEBUG_PRINT(F("Start write..."));
+		DEBUG_PRINT_AI(F("Start write..."));
 
 		serializeJson(*doc, myFileSDCart);
 
-		DEBUG_PRINT(F("..."));
+		DEBUG_PRINT_AI(F("..."));
 		// close the file:
 		myFileSDCart.close();
-		DEBUG_PRINTLN(F("done."));
+		DEBUG_PRINTLN_AI(F("done."));
 
 		return true;
 	} else {
 		// if the file didn't open, print an error:
-		DEBUG_PRINT(F("Error opening "));
-		DEBUG_PRINTLN(filename);
+		DEBUG_PRINT_AI(F("Error opening "));
+		DEBUG_PRINTLN_AI(filename);
 
 		return false;
 	}
@@ -1302,28 +1305,28 @@ void setCrossOrigin(){
 };
 
 void streamFileOnRest(String filename){
-	if (SD.exists(filename)){
+	if (SD.exists(filename.c_str())){
 		myFileSDCart = SD.open(filename);
 		if (myFileSDCart){
 			if (myFileSDCart.available()){
-				DEBUG_PRINT(F("Stream file..."));
-				DEBUG_PRINT(filename);
+				DEBUG_PRINT_AI(F("Stream file..."));
+				DEBUG_PRINT_AI(filename);
 				httpRestServer.streamFile(myFileSDCart, F("application/json"));
-				DEBUG_PRINTLN(F("...done."));
+				DEBUG_PRINTLN_AI(F("...done."));
 			}else{
-				DEBUG_PRINTLN(F("Data not available!"));
+				DEBUG_PRINTLN_AI(F("Data not available!"));
 				httpRestServer.send(204, F("text/html"), F("Data not available!"));
 			}
 			myFileSDCart.close();
 		}else{
-			DEBUG_PRINT(filename);
-			DEBUG_PRINTLN(F(" not found!"));
+			DEBUG_PRINT_AI(filename);
+			DEBUG_PRINTLN_AI(F(" not found!"));
 
 			httpRestServer.send(204, F("text/html"), F("No content found!"));
 		}
 	}else{
-		DEBUG_PRINT(filename);
-		DEBUG_PRINTLN(F(" not found!"));
+		DEBUG_PRINT_AI(filename);
+		DEBUG_PRINTLN_AI(F(" not found!"));
 		httpRestServer.send(204, F("text/html"), F("File not exist!"));
 	}
 }
@@ -1345,8 +1348,8 @@ String getContentType(String filename){
 }
 
 bool handleFileRead(String path){  // send the right file to the client (if it exists)
-  DEBUG_PRINT(F("handleFileRead: "));
-  DEBUG_PRINTLN(path);
+  DEBUG_PRINT_AI(F("handleFileRead: "));
+  DEBUG_PRINTLN_AI(path);
 
   if(path.endsWith("/")) path += F("index.html");           // If a folder is requested, send the index file
   String contentType = getContentType(path);             // Get the MIME type
@@ -1357,10 +1360,10 @@ bool handleFileRead(String path){  // send the right file to the client (if it e
     fs::File file = SPIFFS.open(path, "r");                    // Open the file
     size_t sent = httpServer.streamFile(file, contentType);    // Send it to the client
     file.close();                                          // Close the file again
-    DEBUG_PRINTLN(String(F("\tSent file: ")) + path + String(F(" of size ")) + sent);
+    DEBUG_PRINTLN_AI(String(F("\tSent file: ")) + path + String(F(" of size ")) + sent);
     return true;
   }
-  DEBUG_PRINTLN(String(F("\tFile Not Found: ")) + path);
+  DEBUG_PRINTLN_AI(String(F("\tFile Not Found: ")) + path);
   return false;                                          // If the file doesn't exist, return false
 }
 
@@ -1369,102 +1372,102 @@ void streamFile(const String filename){
 		fs::File fileToStream = SPIFFS.open(filename, "r");
 		if (fileToStream){
 			if (fileToStream.available()){
-				DEBUG_PRINT(F("Stream file..."));
+				DEBUG_PRINT_AI(F("Stream file..."));
 				const String appContext = getContentType(filename);
 				httpRestServer.streamFile(fileToStream, appContext);
-				DEBUG_PRINTLN(F("done."));
+				DEBUG_PRINTLN_AI(F("done."));
 			}else{
-				DEBUG_PRINTLN(F("Data not available!"));
+				DEBUG_PRINTLN_AI(F("Data not available!"));
 				httpRestServer.send(204, "text/html", "Data not available!");
 			}
 			fileToStream.close();
 		}else{
-			DEBUG_PRINTLN(F("File not found!"));
+			DEBUG_PRINTLN_AI(F("File not found!"));
 			httpRestServer.send(204, "text/html", "No content found!");
 		}
 	}else{
-		DEBUG_PRINTLN(F("File not found!"));
+		DEBUG_PRINTLN_AI(F("File not found!"));
 		httpRestServer.send(204, "text/html", "File not exist!");
 	}
 }
 
 void getProduction(){
-	DEBUG_PRINTLN(F("getProduction"));
+	DEBUG_PRINTLN_AI(F("getProduction"));
 
 	setCrossOrigin();
 
 	if (httpRestServer.arg(F("day"))== "" || httpRestServer.arg(F("type"))== "" ){     //Parameter not found
 		httpRestServer.send(400, F("text/html"), F("Missing required parameter!"));
-		DEBUG_PRINTLN(F("No parameter"));
+		DEBUG_PRINTLN_AI(F("No parameter"));
 	}else{     //Parameter found
-		DEBUG_PRINT(F("Read file: "));
+		DEBUG_PRINT_AI(F("Read file: "));
 		String filename = "product/"+httpRestServer.arg(F("day"))+"/"+httpRestServer.arg(F("type"))+".jso";
 
-		DEBUG_PRINTLN(filename);
+		DEBUG_PRINTLN_AI(filename);
 
 		streamFileOnRest(filename);
 	}
 }
 
 void getBatteryInfo(){
-	DEBUG_PRINTLN(F("getBatteryInfo"));
+	DEBUG_PRINTLN_AI(F("getBatteryInfo"));
 
 	setCrossOrigin();
 
 	if (httpRestServer.arg(F("day"))== "" ){     //Parameter not found
 		httpRestServer.send(400, F("text/html"), F("Missing required parameter!"));
-		DEBUG_PRINTLN(F("No parameter"));
+		DEBUG_PRINTLN_AI(F("No parameter"));
 	}else{     //Parameter found
-		DEBUG_PRINT(F("Read file: "));
+		DEBUG_PRINT_AI(F("Read file: "));
 		String filename = "battery/"+httpRestServer.arg(F("day"))+".jso";
 
-		DEBUG_PRINTLN(filename);
+		DEBUG_PRINTLN_AI(filename);
 
 		streamFileOnRest(filename);
 	}
 }
 void getProductionTotal(){
-	DEBUG_PRINTLN(F("getProduction"));
+	DEBUG_PRINTLN_AI(F("getProduction"));
 
 	setCrossOrigin();
 
 
-	DEBUG_PRINT(F("Read file: "));
+	DEBUG_PRINT_AI(F("Read file: "));
 	String scopeDirectory = F("states");
 	String filename =  scopeDirectory+F("/lastStat.jso");
 
 
-	DEBUG_PRINTLN(filename);
+	DEBUG_PRINTLN_AI(filename);
 
 	streamFileOnRest(filename);
 
 }
 
 void getMontlyValue(){
-	DEBUG_PRINTLN(F("getMontlyValue"));
+	DEBUG_PRINTLN_AI(F("getMontlyValue"));
 
 	setCrossOrigin();
 	String scopeDirectory = F("monthly");
 
 	if (httpRestServer.arg("month")== ""){     //Parameter not found
 		httpRestServer.send(400, F("text/html"), F("Missing required parameter!"));
-		DEBUG_PRINTLN(F("No parameter"));
+		DEBUG_PRINTLN_AI(F("No parameter"));
 	}else{     //Parameter found
-		DEBUG_PRINT(F("Read file: "));
+		DEBUG_PRINT_AI(F("Read file: "));
 		String filename = scopeDirectory+'/'+httpRestServer.arg(F("month"))+F(".jso");
 		streamFileOnRest(filename);
 	}
 }
 
 void getHistoricalValue(){
-	DEBUG_PRINTLN(F("getHistoricalValue"));
+	DEBUG_PRINTLN_AI(F("getHistoricalValue"));
 
 	setCrossOrigin();
 	String scopeDirectory = F("states");
 
 	if (httpRestServer.arg("frequence")== ""){     //Parameter not found
 		httpRestServer.send(400, F("text/html"), F("Missing required parameter!"));
-		DEBUG_PRINTLN(F("No frequence parameter"));
+		DEBUG_PRINTLN_AI(F("No frequence parameter"));
 	}else{     //Parameter found
 		String filename;
 		if (httpRestServer.arg("frequence") == F("years")){
@@ -1472,30 +1475,30 @@ void getHistoricalValue(){
 		}else{
 			if (httpRestServer.arg("year")== ""){
 				httpRestServer.send(400, F("text/html"), F("Missing required parameter!"));
-				DEBUG_PRINTLN(F("No year parameter"));
+				DEBUG_PRINTLN_AI(F("No year parameter"));
 			}else{
 				filename = scopeDirectory+'/'+httpRestServer.arg("frequence")+'/'+httpRestServer.arg("year")+F(".jso");
 			}
 		}
-		DEBUG_PRINT(F("Read file: "));
+		DEBUG_PRINT_AI(F("Read file: "));
 		streamFileOnRest(filename);
 	}
 }
 
 void postConfigFile() {
-	DEBUG_PRINTLN(F("postConfigFile"));
+	DEBUG_PRINTLN_AI(F("postConfigFile"));
 
 	setCrossOrigin();
 
     String postBody = httpRestServer.arg("plain");
-    DEBUG_PRINTLN(postBody);
+    DEBUG_PRINTLN_AI(postBody);
 
 	DynamicJsonDocument doc(CONFIG_FILE_HEAP);
 	DeserializationError error = deserializeJson(doc, postBody);
 	if (error) {
 		// if the file didn't open, print an error:
-		DEBUG_PRINT(F("Error parsing JSON "));
-		DEBUG_PRINTLN(error.c_str());
+		DEBUG_PRINT_AI(F("Error parsing JSON "));
+		DEBUG_PRINTLN_AI(error.c_str());
 
 		String msg = error.c_str();
 
@@ -1504,24 +1507,24 @@ void postConfigFile() {
 	}else{
 		JsonObject postObj = doc.as<JsonObject>();
 
-		DEBUG_PRINT(F("HTTP Method: "));
-		DEBUG_PRINTLN(httpRestServer.method());
+		DEBUG_PRINT_AI(F("HTTP Method: "));
+		DEBUG_PRINTLN_AI(httpRestServer.method());
 
         if (httpRestServer.method() == HTTP_POST) {
             if ((postObj.containsKey("server"))) {
 
-            	DEBUG_PRINT(F("Open config file..."));
+            	DEBUG_PRINT_AI(F("Open config file..."));
             	fs::File configFile = SPIFFS.open(F("/mc/config.txt"), "w");
             	if (!configFile) {
-            	    DEBUG_PRINTLN(F("fail."));
+            	    DEBUG_PRINTLN_AI(F("fail."));
             	    httpRestServer.send(304, F("text/html"), F("Fail to store data, can't open file!"));
             	}else{
-            		DEBUG_PRINTLN(F("done."));
+            		DEBUG_PRINTLN_AI(F("done."));
             		serializeJson(doc, configFile);
 //            		httpRestServer.sendHeader("Content-Length", String(postBody.length()));
             		httpRestServer.send(201, F("application/json"), postBody);
 
-//            		DEBUG_PRINTLN(F("Sent reset page"));
+//            		DEBUG_PRINTLN_AI(F("Sent reset page"));
 //					  delay(5000);
 //					  ESP.restart();
 //					  delay(2000);
@@ -1535,43 +1538,43 @@ void postConfigFile() {
 }
 
 void getConfigFile(){
-	DEBUG_PRINTLN(F("getConfigFile"));
+	DEBUG_PRINTLN_AI(F("getConfigFile"));
 
 	setCrossOrigin();
 
-	DEBUG_PRINT(F("Read file: "));
+	DEBUG_PRINT_AI(F("Read file: "));
 	if (SPIFFS.exists(F("/mc/config.txt"))){
     	fs::File configFile = SPIFFS.open(F("/mc/config.txt"), "r");
 		if (configFile){
 			if (configFile.available()){
-				DEBUG_PRINT(F("Stream file..."));
+				DEBUG_PRINT_AI(F("Stream file..."));
 				httpRestServer.streamFile(configFile, F("application/json"));
-				DEBUG_PRINTLN(F("done."));
+				DEBUG_PRINTLN_AI(F("done."));
 			}else{
-				DEBUG_PRINTLN(F("File not found!"));
+				DEBUG_PRINTLN_AI(F("File not found!"));
 				httpRestServer.send(204, F("text/html"), F("No content found!"));
 			}
 			configFile.close();
 		}
 	}else{
-		DEBUG_PRINTLN(F("File not found!"));
+		DEBUG_PRINTLN_AI(F("File not found!"));
 	}
 }
 
 void getInverterInfo(){
-	DEBUG_PRINTLN(F("getInverterInfo"));
+	DEBUG_PRINTLN_AI(F("getInverterInfo"));
 
 	setCrossOrigin();
 
 	String scopeDirectory = F("static");
 
-	DEBUG_PRINT(F("Read file: "));
+	DEBUG_PRINT_AI(F("Read file: "));
 	String filename = scopeDirectory+F("/invinfo.jso");
 	streamFileOnRest(filename);
 }
 
 void inverterDayWithProblem() {
-	DEBUG_PRINTLN(F("inverterDayWithProblem"));
+	DEBUG_PRINTLN_AI(F("inverterDayWithProblem"));
 
 	setCrossOrigin();
 
@@ -1593,7 +1596,7 @@ void inverterDayWithProblem() {
 				// no more files
 				break;
 			}
-			DEBUG_PRINTLN(entry.name());
+			DEBUG_PRINTLN_AI(entry.name());
 			if (entry.isDirectory()) {
 				data.add(entry.name());
 			}
@@ -1603,49 +1606,49 @@ void inverterDayWithProblem() {
 		myFileSDCart.close();
 	}
 	if (data.size() > 0) {
-		DEBUG_PRINT(F("Stream file..."));
+		DEBUG_PRINT_AI(F("Stream file..."));
 		String buf;
 		serializeJson(rootObj, buf);
 		httpRestServer.send(200, F("application/json"), buf);
-		DEBUG_PRINTLN(F("done."));
+		DEBUG_PRINTLN_AI(F("done."));
 	} else {
-		DEBUG_PRINTLN(F("No content found!"));
+		DEBUG_PRINTLN_AI(F("No content found!"));
 		httpRestServer.send(204, F("text/html"), F("No content found!"));
 	}
 }
 
 void getInverterDayState() {
-	DEBUG_PRINTLN(F("getInverterDayState"));
+	DEBUG_PRINTLN_AI(F("getInverterDayState"));
 
 	setCrossOrigin();
 
 	String scopeDirectory = F("alarms");
 
-	DEBUG_PRINT(F("Read file: "));
+	DEBUG_PRINT_AI(F("Read file: "));
 
 	if (httpRestServer.arg("day") == "") {     //Parameter not found
 		httpRestServer.send(400, F("text/html"), F("Missing required parameter!"));
-		DEBUG_PRINTLN(F("No parameter"));
+		DEBUG_PRINTLN_AI(F("No parameter"));
 	} else {     //Parameter found
 
 		String filename;
 		String parameter = httpRestServer.arg("day");
 		filename = scopeDirectory + '/' + parameter + F("/alarms.jso");
 
-		DEBUG_PRINTLN(filename);
+		DEBUG_PRINTLN_AI(filename);
 
 		streamFileOnRest(filename);
 	}
 }
 
 void getInverterLastState(){
-	DEBUG_PRINTLN(F("getInverterLastState"));
+	DEBUG_PRINTLN_AI(F("getInverterLastState"));
 
 	setCrossOrigin();
 
 	String scopeDirectory = F("alarms");
 
-	DEBUG_PRINT(F("Read file: "));
+	DEBUG_PRINT_AI(F("Read file: "));
 
 	String filename;
 	String parameter = httpRestServer.arg("day");
@@ -1663,14 +1666,14 @@ float getBatteryVoltage(){
 		delay(2);
 	}
 	sample1 = sample1 / 100;
-	DEBUG_PRINT(F("AnalogRead..."));
-	DEBUG_PRINTLN(sample1);
+	DEBUG_PRINT_AI(F("AnalogRead..."));
+	DEBUG_PRINTLN_AI(sample1);
 	float batVolt = (sample1 * 3.3 * (BAT_RES_VALUE_VCC + BAT_RES_VALUE_GND) / BAT_RES_VALUE_GND) / 1023;
 	return batVolt;
 }
 
 void getServerState(){
-	DEBUG_PRINTLN(F("getServerState"));
+	DEBUG_PRINTLN_AI(F("getServerState"));
 
 	setCrossOrigin();
 
@@ -1699,14 +1702,14 @@ void getServerState(){
 
 	chip[F("batteryVoltage")] = getBatteryVoltage(); //sample1;//setPrecision(batVolt,2);
 
-	DEBUG_PRINT(F("Stream file..."));
+	DEBUG_PRINT_AI(F("Stream file..."));
 	String buf;
 	serializeJson(rootObj, buf);
 	httpRestServer.send(200, F("application/json"), buf);
-	DEBUG_PRINTLN(F("done."));
+	DEBUG_PRINTLN_AI(F("done."));
 }
 void getReset(){
-	DEBUG_PRINTLN(F("getReset"));
+	DEBUG_PRINTLN_AI(F("getReset"));
 
 	setCrossOrigin();
 
@@ -1735,23 +1738,23 @@ void getReset(){
 //
 //	chip[F("batteryVoltage")] = getBatteryVoltage(); //sample1;//setPrecision(batVolt,2);
 //
-//	DEBUG_PRINT(F("Stream file..."));
+//	DEBUG_PRINT_AI(F("Stream file..."));
 //	String buf;
 //	serializeJson(rootObj, buf);
 //	httpRestServer.send(200, F("application/json"), buf);
-//	DEBUG_PRINTLN(F("done."));
-	DEBUG_PRINT(F("Reset..."));
+//	DEBUG_PRINTLN_AI(F("done."));
+	DEBUG_PRINT_AI(F("Reset..."));
 	WiFiManager wifiManager;
 	wifiManager.resetSettings();
 
-	DEBUG_PRINT(SPIFFS.remove(F("/mc/config.txt")));
+	DEBUG_PRINT_AI(SPIFFS.remove(F("/mc/config.txt")));
 
-	DEBUG_PRINTLN(F("done"));
+	DEBUG_PRINTLN_AI(F("done"));
 
 }
 
 void sendCrossOriginHeader(){
-	DEBUG_PRINTLN(F("sendCORSHeader"));
+	DEBUG_PRINTLN_AI(F("sendCORSHeader"));
 
 	httpRestServer.sendHeader(F("access-control-allow-credentials"), F("false"));
 
@@ -1793,14 +1796,14 @@ void restServerRouting() {
 
 void serverRouting() {
 	  httpServer.onNotFound([]() {                              // If the client requests any URI
-		  DEBUG_PRINTLN(F("On not found"));
+		  DEBUG_PRINTLN_AI(F("On not found"));
 	    if (!handleFileRead(httpServer.uri())){                  // send it if it exists
-	    	DEBUG_PRINTLN(F("Not found"));
+	    	DEBUG_PRINTLN_AI(F("Not found"));
 	    	httpServer.send(404, F("text/plain"), F("404: Not Found")); // otherwise, respond with a 404 (Not Found) error
 	    }
 	  });
 
-	  DEBUG_PRINTLN(F("Set cache!"));
+	  DEBUG_PRINTLN_AI(F("Set cache!"));
 
 	  httpServer.serveStatic("/settings.json", SPIFFS, "/settings.json","no-cache, no-store, must-revalidate");
 	  httpServer.serveStatic("/", SPIFFS, "/","max-age=31536000");
@@ -1808,22 +1811,22 @@ void serverRouting() {
 
 
 void updateLocalTimeWithNTPCallback(){
-	DEBUG_PRINT(F("Thread call (updateLocalTimeWithNTPCallback) --> "));
-	DEBUG_PRINTLN(getEpochStringByParams(now()));
+	DEBUG_PRINT_AI(F("Thread call (updateLocalTimeWithNTPCallback) --> "));
+	DEBUG_PRINTLN_AI(getEpochStringByParams(now()));
 
 	if (!fixedTime){
-		DEBUG_PRINTLN(F("Update NTP Time."));
+		DEBUG_PRINTLN_AI(F("Update NTP Time."));
 		if (timeClient.forceUpdate()){
 			unsigned long epoch = timeClient.getEpochTime();
-			DEBUG_PRINTLN(epoch);
+			DEBUG_PRINTLN_AI(epoch);
 
-			DEBUG_PRINTLN(F("NTP Time retrieved."));
+			DEBUG_PRINTLN_AI(F("NTP Time retrieved."));
 			adjustTime(epoch);
 			fixedTime = true;
 		}else{
-			DEBUG_PRINTLN(F("NTP Time not retrieved."));
+			DEBUG_PRINTLN_AI(F("NTP Time not retrieved."));
 
-			DEBUG_PRINTLN(F("Get Inverter Time."));
+			DEBUG_PRINTLN_AI(F("Get Inverter Time."));
 			// Get DateTime from inverter
 			Aurora::DataTimeDate timeDate = inverter.readTimeDate();
 			Timezone tz = getTimezoneData(codeDST);
@@ -1831,21 +1834,21 @@ void updateLocalTimeWithNTPCallback(){
 			time_t currentUTCTime = tz.toUTC(mktime(&tempTime));
 
 			if (timeDate.state.readState){
-				DEBUG_PRINTLN(F("Inverter Time retrieved."));
+				DEBUG_PRINTLN_AI(F("Inverter Time retrieved."));
 				// Set correct time in Arduino Time librery
 				adjustTime(currentUTCTime); // - timeOffset);
 				fixedTime = true;
 			}else{
-				DEBUG_PRINTLN(F("Inverter Time not retrieved."));
-				DEBUG_PRINTLN(F("DANGER, SYSTEM INCONCISTENCY"));
+				DEBUG_PRINTLN_AI(F("Inverter Time not retrieved."));
+				DEBUG_PRINTLN_AI(F("DANGER, SYSTEM INCONCISTENCY"));
 			}
 		}
 
 		Timezone tz = getTimezoneData(codeDST);
 
-		DEBUG_PRINTLN(getEpochStringByParams(now()));
-		DEBUG_PRINTLN(tz.utcIsDST(now()));
-		DEBUG_PRINTLN(getEpochStringByParams(tz.toLocal(now())));
+		DEBUG_PRINTLN_AI(getEpochStringByParams(now()));
+		DEBUG_PRINTLN_AI(tz.utcIsDST(now()));
+		DEBUG_PRINTLN_AI(getEpochStringByParams(tz.toLocal(now())));
 
 	}
 
@@ -1871,16 +1874,16 @@ void errorLed(bool flag){
 	digitalWrite(ERROR_PIN, flag);
 	if (!alreadySendNotification && sdWrongReadNumber>=SD_WRONG_WRITE_NUMBER_ALERT){
 		alreadySendNotification = true;
-    	DEBUG_PRINT(F("Open config file..."));
+    	DEBUG_PRINT_AI(F("Open config file..."));
 		fs::File configFile = SPIFFS.open(F("/mc/config.txt"), "r");
 		if (configFile) {
-			DEBUG_PRINTLN("done.");
+			DEBUG_PRINTLN_AI("done.");
 			DynamicJsonDocument doc(CONFIG_FILE_HEAP);
 			DeserializationError error = deserializeJson(doc, configFile);
 			if (error) {
 				// if the file didn't open, print an error:
-				DEBUG_PRINT(F("Error parsing JSON "));
-				DEBUG_PRINTLN(error.c_str());
+				DEBUG_PRINT_AI(F("Error parsing JSON "));
+				DEBUG_PRINTLN_AI(error.c_str());
 			}
 
 			// close the file:
@@ -1888,15 +1891,15 @@ void errorLed(bool flag){
 
 			JsonObject rootObj = doc.as<JsonObject>();
 
-			DEBUG_PRINT(F("After read config check serverSMTP and preferences "));
-			DEBUG_PRINTLN(rootObj.containsKey(F("serverSMTP")) && rootObj.containsKey(F("preferences")));
+			DEBUG_PRINT_AI(F("After read config check serverSMTP and preferences "));
+			DEBUG_PRINTLN_AI(rootObj.containsKey(F("serverSMTP")) && rootObj.containsKey(F("preferences")));
 
 			if (rootObj.containsKey(F("serverSMTP")) && rootObj.containsKey(F("preferences"))){
 				JsonObject serverSMTP = rootObj["serverSMTP"];
 				JsonObject preferences = rootObj["preferences"];
 
-				DEBUG_PRINT(F("(preferences.containsKey(adminEmail) && preferences[adminEmail]!="")"));
-				DEBUG_PRINTLN((preferences.containsKey(F("adminEmail")) && preferences[F("adminEmail")]!=""));
+				DEBUG_PRINT_AI(F("(preferences.containsKey(adminEmail) && preferences[adminEmail]!="")"));
+				DEBUG_PRINTLN_AI((preferences.containsKey(F("adminEmail")) && preferences[F("adminEmail")]!=""));
 
 				if (preferences.containsKey(F("adminEmail")) && preferences[F("adminEmail")]!=""){
 					const char* serverSMTPAddr = serverSMTP[F("server")];
@@ -1910,16 +1913,16 @@ void errorLed(bool flag){
 					const char* fromSMTP = serverSMTP[F("from")];
 					emailSend.setEMailFrom(fromSMTP);
 
-					DEBUG_PRINT(F("server "));
-					DEBUG_PRINTLN(serverSMTPAddr);
-					DEBUG_PRINT(F("port "));
-					DEBUG_PRINTLN(portSMTP);
-					DEBUG_PRINT(F("login "));
-					DEBUG_PRINTLN(loginSMTP);
-					DEBUG_PRINT(F("password "));
-					DEBUG_PRINTLN(passwordSMTP);
-					DEBUG_PRINT(F("from "));
-					DEBUG_PRINTLN(fromSMTP);
+					DEBUG_PRINT_AI(F("server "));
+					DEBUG_PRINTLN_AI(serverSMTPAddr);
+					DEBUG_PRINT_AI(F("port "));
+					DEBUG_PRINTLN_AI(portSMTP);
+					DEBUG_PRINT_AI(F("login "));
+					DEBUG_PRINTLN_AI(loginSMTP);
+					DEBUG_PRINT_AI(F("password "));
+					DEBUG_PRINTLN_AI(passwordSMTP);
+					DEBUG_PRINT_AI(F("from "));
+					DEBUG_PRINTLN_AI(fromSMTP);
 
 					EMailSender::EMailMessage message;
 					const String sub = F("Inverter error!");
@@ -1942,11 +1945,11 @@ void errorLed(bool flag){
 					const char* emailToSend = preferences["adminEmail"];
 					EMailSender::Response resp = emailSend.send(emailToSend, message);
 
-					DEBUG_PRINTLN(F("Sending status: "));
-					DEBUG_PRINTLN(emailToSend);
-					DEBUG_PRINTLN(resp.status);
-					DEBUG_PRINTLN(resp.code);
-					DEBUG_PRINTLN(resp.desc);
+					DEBUG_PRINTLN_AI(F("Sending status: "));
+					DEBUG_PRINTLN_AI(emailToSend);
+					DEBUG_PRINTLN_AI(resp.status);
+					DEBUG_PRINTLN_AI(resp.code);
+					DEBUG_PRINTLN_AI(resp.desc);
 				}
 			}
 		}
@@ -1954,8 +1957,8 @@ void errorLed(bool flag){
 }
 
 Timezone getTimezoneData(const String code){
-//	DEBUG_PRINT("CODE DST RETRIVED: ");
-//	DEBUG_PRINTLN(code);
+//	DEBUG_PRINT_AI("CODE DST RETRIVED: ");
+//	DEBUG_PRINTLN_AI(code);
 	if (code=="AETZ"){
 		// Australia Eastern Time Zone (Sydney, Melbourne)
 		TimeChangeRule aEDT = {"AEDT", First, Sun, Oct, 2, 660};    // UTC + 11 hours
@@ -1963,7 +1966,7 @@ Timezone getTimezoneData(const String code){
 		Timezone tzTmp = Timezone(aEDT, aEST);
 		return tzTmp;
 	}else if (code=="CET"){
-		DEBUG_PRINTLN("CET FIND");
+		DEBUG_PRINTLN_AI("CET FIND");
 		// Central European Time (Frankfurt, Paris)
 		TimeChangeRule CEST = {"CEST", Last, Sun, Mar, 2, 120};     // Central European Summer Time
 		TimeChangeRule CET = {"CET ", Last, Sun, Oct, 3, 60};       // Central European Standard Time
@@ -2010,9 +2013,9 @@ Timezone getTimezoneData(const String code){
 		return tzTmp;
 	}else{
 		// UTC
-//		DEBUG_PRINT("TIME_OFFSET ");
+//		DEBUG_PRINT_AI("TIME_OFFSET ");
 		int to = timeOffset/60;
-//		DEBUG_PRINTLN(to);
+//		DEBUG_PRINTLN_AI(to);
 		TimeChangeRule utcRule = {"GMT", Last, Sun, Mar, 1, to};     // GMT
 		Timezone tzTmp = Timezone(utcRule);
 		return tzTmp;
@@ -2025,9 +2028,9 @@ Timezone getTimezoneData(const String code){
 time_t getLocalTime(void){
 	Timezone tz = getTimezoneData(codeDST);
 
-//	DEBUG_PRINTLN(getEpochStringByParams(now()));
-//	DEBUG_PRINTLN(tz.utcIsDST(now()));
-//	DEBUG_PRINTLN(getEpochStringByParams(tz.toLocal(now())));
+//	DEBUG_PRINTLN_AI(getEpochStringByParams(now()));
+//	DEBUG_PRINTLN_AI(tz.utcIsDST(now()));
+//	DEBUG_PRINTLN_AI(getEpochStringByParams(tz.toLocal(now())));
 //
 	return tz.toLocal(now());
 }

@@ -34,17 +34,17 @@
 		<link>
 			<name>core/core</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.4.2/cores/esp8266</locationURI>
+			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.5.2/cores/esp8266</locationURI>
 		</link>
 		<link>
 			<name>core/variant</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.4.2/variants/d1_mini</locationURI>
+			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.5.2/variants/d1_mini</locationURI>
 		</link>
 		<link>
 			<name>libraries/ArduinoJson</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/libraries/ArduinoJson/6.11.0</locationURI>
+			<locationURI>ECLIPSE_HOME/arduinoPlugin/libraries/ArduinoJson/6.12.0</locationURI>
 		</link>
 		<link>
 			<name>libraries/ArduinoThread</name>
@@ -59,7 +59,7 @@
 		<link>
 			<name>libraries/DNSServer</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.4.2/libraries/DNSServer</locationURI>
+			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.5.2/libraries/DNSServer</locationURI>
 		</link>
 		<link>
 			<name>libraries/EMailSender</name>
@@ -69,57 +69,57 @@
 		<link>
 			<name>libraries/ESP8266WebServer</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.4.2/libraries/ESP8266WebServer</locationURI>
+			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.5.2/libraries/ESP8266WebServer</locationURI>
 		</link>
 		<link>
 			<name>libraries/ESP8266WiFi</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.4.2/libraries/ESP8266WiFi</locationURI>
+			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.5.2/libraries/ESP8266WiFi</locationURI>
 		</link>
 		<link>
 			<name>libraries/ESP8266mDNS</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.4.2/libraries/ESP8266mDNS</locationURI>
+			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.5.2/libraries/ESP8266mDNS</locationURI>
 		</link>
 		<link>
 			<name>libraries/NTPClient</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/libraries/NTPClient/3.1.0</locationURI>
-		</link>
-		<link>
-			<name>libraries/SD</name>
-			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.4.2/libraries/SD</locationURI>
+			<locationURI>ECLIPSE_HOME/arduinoPlugin/libraries/NTPClient/3.2.0</locationURI>
 		</link>
 		<link>
 			<name>libraries/SPI</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.4.2/libraries/SPI</locationURI>
+			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.5.2/libraries/SPI</locationURI>
+		</link>
+		<link>
+			<name>libraries/SdFat</name>
+			<type>2</type>
+			<locationURI>ECLIPSE_HOME/arduinoPlugin/libraries/SdFat/1.0.16</locationURI>
 		</link>
 		<link>
 			<name>libraries/SoftwareSerial</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.4.2/libraries/SoftwareSerial</locationURI>
+			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.5.2/libraries/SoftwareSerial</locationURI>
 		</link>
 		<link>
 			<name>libraries/Time</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/libraries/Time/1.5.0</locationURI>
+			<locationURI>ECLIPSE_HOME/arduinoPlugin/libraries/Time/1.6.0</locationURI>
 		</link>
 		<link>
 			<name>libraries/Timezone</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/libraries/Timezone/1.2.2</locationURI>
+			<locationURI>ECLIPSE_HOME/arduinoPlugin/libraries/Timezone/1.2.4</locationURI>
 		</link>
 		<link>
 			<name>libraries/WiFiManager</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/libraries/WiFiManager/0.14.0</locationURI>
+			<locationURI>WORKSPACE_LOC/WiFiManager</locationURI>
 		</link>
 		<link>
 			<name>libraries/Wire</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.4.2/libraries/Wire</locationURI>
+			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.5.2/libraries/Wire</locationURI>
 		</link>
 		<link>
 			<name>libraries/esp8266FTPServer</name>
