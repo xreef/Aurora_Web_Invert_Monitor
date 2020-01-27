@@ -625,7 +625,7 @@ environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.PACKAGE_
 environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.PACKAGE_ID/value=esp8266
 environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.PROJECT_NAME/delimiter=;
 environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.PROJECT_NAME/operation=replace
-environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.PROJECT_NAME/value=AuroraServerWebRest
+environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.PROJECT_NAME/value=auroraesp8266serverwebrest
 environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.SELECTED.PLATFORM/delimiter=;
 environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.SELECTED.PLATFORM/operation=replace
 environment/project/io.sloeber.core.toolChain.release.1470130863/JANTJE.SELECTED.PLATFORM/value=${eclipse_home}/arduinoPlugin/packages/esp8266/hardware/esp8266/2.5.2

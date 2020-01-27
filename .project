@@ -49,7 +49,7 @@
 		<link>
 			<name>libraries/ArduinoThread</name>
 			<type>2</type>
-			<locationURI>WORKSPACE_LOC/ArduinoThread</locationURI>
+			<locationURI>ECLIPSE_HOME/arduinoPlugin/libraries/ArduinoThread/2.1.1</locationURI>
 		</link>
 		<link>
 			<name>libraries/Aurora_communication_protocol</name>
@@ -114,7 +114,7 @@
 		<link>
 			<name>libraries/WiFiManager</name>
 			<type>2</type>
-			<locationURI>WORKSPACE_LOC/WiFiManager</locationURI>
+			<locationURI>ECLIPSE_HOME/arduinoPlugin/libraries/WiFiManager/0.15.0-beta</locationURI>
 		</link>
 		<link>
 			<name>libraries/Wire</name>

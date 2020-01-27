@@ -40,6 +40,22 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/Timezone/src}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/SdFat/src}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/WiFiManager}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/core/core}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/core/variant}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/ArduinoJson/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/ArduinoThread}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/DNSServer/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/ESP8266mDNS/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/ESP8266WebServer/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/ESP8266WiFi/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/NTPClient}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/SdFat/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/SoftwareSerial/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/SPI}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/Time}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/Timezone/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/WiFiManager}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/Wire}&quot;"/>
 								</option>
 								<inputType id="io.sloeber.compiler.cpp.sketch.input.903989226" name="Sorgente CPP" superClass="io.sloeber.compiler.cpp.sketch.input"/>
 							</tool>
@@ -66,6 +82,22 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/Timezone/src}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/SdFat/src}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/WiFiManager}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/core/core}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/core/variant}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/ArduinoJson/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/ArduinoThread}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/DNSServer/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/ESP8266mDNS/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/ESP8266WebServer/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/ESP8266WiFi/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/NTPClient}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/SdFat/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/SoftwareSerial/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/SPI}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/Time}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/Timezone/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/WiFiManager}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/Wire}&quot;"/>
 								</option>
 								<inputType id="io.sloeber.compiler.c.sketch.input.1757420875" name="Sorgente C" superClass="io.sloeber.compiler.c.sketch.input"/>
 							</tool>
@@ -92,6 +124,22 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/Timezone/src}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/SdFat/src}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/AuroraServerWebRest/libraries/WiFiManager}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/core/core}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/core/variant}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/ArduinoJson/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/ArduinoThread}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/DNSServer/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/ESP8266mDNS/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/ESP8266WebServer/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/ESP8266WiFi/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/NTPClient}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/SdFat/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/SoftwareSerial/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/SPI}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/Time}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/Timezone/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/WiFiManager}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/auroraesp8266serverwebrest/libraries/Wire}&quot;"/>
 								</option>
 								<inputType id="io.sloeber.compiler.S.sketch.input.1151373035" name="Sorgente Assembly" superClass="io.sloeber.compiler.S.sketch.input"/>
 							</tool>
