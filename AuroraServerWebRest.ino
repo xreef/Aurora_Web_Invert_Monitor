@@ -41,10 +41,8 @@
 #ifdef WS_ACTIVE
 	WebSocketsServer webSocket = WebSocketsServer(WS_PORT);
 
-
 	void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length);
 #endif
-
 
 // HEAP file
 #define CONFIG_FILE_HEAP 4096
@@ -91,10 +89,12 @@
 char hostname[] = "InverterCentraline";
 
 // Interval get data
+#define REALTIME_INTERVAL 5
+
 #define DAILY_INTERVAL 10
 #define CUMULATIVE_INTERVAL 10
 #define CUMULATIVE_TOTAL_INTERVAL 10
-#define STATE_INTERVAL 1
+#define STATE_INTERVAL 10
 #define STATE_STORE_INTERVAL 10
 #define BATTERY_INTERVAL 20
 #define STATIC_DATA_INTERVAL 6 * 60
@@ -116,6 +116,7 @@ Aurora inverter = Aurora(2, D2, D3, INVERTER_COMMUNICATION_CONTROL_PIN);
 
 void manageStaticDataCallback ();
 void leggiProduzioneCallback();
+void realtimeDataCallbak();
 void leggiStatoInverterCallback();
 void leggiStatoBatteriaCallback();
 void updateLocalTimeWithNTPCallback();
@@ -128,6 +129,8 @@ bool saveJSonToAFile(DynamicJsonDocument *doc, String filename);
 JsonObject getJSonFromFile(DynamicJsonDocument *doc, String filename, bool forceCleanONJsonError = true);
 
 void errorLed(bool flag);
+
+Thread RealtimeData = Thread();
 
 Thread ManageStaticData = Thread();
 
@@ -218,6 +221,10 @@ float setPrecision(float val, byte precision);
 #define DSP_GRID_POWER_ALL_FILENAME									F("power.jso")		/* Global */
 #define DSP_GRID_CURRENT_ALL_FILENAME								F("current.jso")
 #define DSP_GRID_VOLTAGE_ALL_FILENAME								F("voltage.jso")
+
+#define BATTERY_RT												F("bat_rt")		/* Global */
+#define WIFI_SIGNAL_STRENGHT_RT									F("wifi_rt")		/* Global */
+#define DSP_GRID_POWER_ALL_TYPE_RT								F("power_rt")		/* Global */
 
 #define DSP_GRID_POWER_ALL_TYPE									F("power")		/* Global */
 #define DSP_GRID_CURRENT_ALL_TYPE								F("current")
@@ -491,6 +498,9 @@ void setup() {
 	LeggiProduzione.onRun(leggiProduzioneCallback);
 	LeggiProduzione.setInterval(60 * 1000);
 
+	RealtimeData.onRun(realtimeDataCallbak);
+	RealtimeData.setInterval(1000 * REALTIME_INTERVAL);
+
 	int timeToRetry = 10;
 	while ( WiFi.status() != WL_CONNECTED && timeToRetry>0 ) {
 	    delay ( 500 );
@@ -561,6 +571,10 @@ void loop() {
 	// Activate thread
 	if (fixedTime && LeggiProduzione.shouldRun()) {
 		LeggiProduzione.run();
+	}
+
+	if (fixedTime && RealtimeData.shouldRun()) {
+		RealtimeData.run();
 	}
 
 	if (fixedTime && sdStarted && LeggiStatoInverter.shouldRun()) {
@@ -1333,7 +1347,7 @@ void readTotals(tm nowDt){
 
 }
 #ifdef WS_ACTIVE
-void sendWSProductionDaily(String type, float val){
+void sendSimpleWSMessage(String type, String val){
 	DynamicJsonDocument docws(512);
 	JsonObject objws = docws.to<JsonObject>();
 	String dateFormatted = getEpochStringByParams(getLocalTime());
@@ -1381,7 +1395,7 @@ void readProductionDaily(tm nowDt){
 
 				if (val && val > 0) {
 #ifdef WS_ACTIVE
-				sendWSProductionDaily(type, val);
+				sendSimpleWSMessage(type, String(setPrecision(val, 1)));
 #endif
 
 					String dataDirectory = getEpochStringByParams(getLocalTime(),
@@ -1425,6 +1439,52 @@ void readProductionDaily(tm nowDt){
 	}
 
 }
+
+#ifdef WS_ACTIVE
+void realtimeDataCallbak() {
+	DEBUG_PRINT(F("Thread call (realtimeDataCallbak) --> "));
+	DEBUG_PRINT(getEpochStringByParams(getLocalTime()));
+	DEBUG_PRINT(F(" MEM --> "));
+	DEBUG_PRINTLN(ESP.getFreeHeap());
+
+
+	byte read = DSP_GRID_POWER_ALL;
+	String type = DSP_GRID_POWER_ALL_TYPE_RT;
+
+//			read = DSP_GRID_CURRENT_ALL;
+//			filename = DSP_GRID_CURRENT_ALL_FILENAME;
+//			type = DSP_GRID_CURRENT_ALL_TYPE;
+//			read = DSP_GRID_VOLTAGE_ALL;
+//			filename = DSP_GRID_VOLTAGE_ALL_FILENAME;
+//			type = DSP_GRID_VOLTAGE_ALL_TYPE;
+
+	Aurora::DataDSP dsp = inverter.readDSP(read);
+	DEBUG_PRINT(F("Read DSP state --> "));
+	DEBUG_PRINTLN(dsp.state.readState);
+	if (dsp.state.readState == 1) {
+		float val = dsp.value;
+
+		if (val && val > 0) {
+			sendSimpleWSMessage(type, String(setPrecision(val, 1)));
+		}
+	}
+
+	float bv = getBatteryVoltage();
+	DEBUG_PRINT(F("BATTERY --> "));
+	DEBUG_PRINTLN(bv);
+
+	type = BATTERY_RT;
+	if (bv>1) {
+		sendSimpleWSMessage(type, String(setPrecision(bv, 2)));
+	}
+
+	DEBUG_PRINT(F("WIFI SIGNAL STRENGHT --> "));
+	DEBUG_PRINTLN(WiFi.RSSI());
+
+	type = WIFI_SIGNAL_STRENGHT_RT;
+	sendSimpleWSMessage(type, String(WiFi.RSSI()));
+}
+#endif
 
 void leggiProduzioneCallback() {
 	DEBUG_PRINT(F("Thread call (leggiProduzioneCallback) --> "));
