@@ -25,6 +25,8 @@
 #include <EMailSender.h>
 #endif
 
+#define WRITE_SETTINGS_IF_EXIST
+
 // SD
 #define SD_WRONG_WRITE_NUMBER_ALERT 10
 #define CS_PIN D8
@@ -432,29 +434,38 @@ void setup() {
     DEBUG_PRINTLN(WiFi.dnsIP(1));
 
 
-	DEBUG_PRINT(F("Recreate settings file..."));
-	fs::File settingsFile = SPIFFS.open(F("/settings.json"), "w");
-	if (!settingsFile) {
-	    DEBUG_PRINTLN(F("fail."));
-	}else{
-		DEBUG_PRINTLN(F("done."));
-		DynamicJsonDocument doc(2048);
-		JsonObject postObj = doc.to<JsonObject>();
-		postObj[F("localIP")] = WiFi.localIP().toString();
-		postObj[F("localRestPort")] = HTTP_REST_PORT;
+#ifndef WRITE_SETTINGS_IF_EXIST
+    if (!SPIFFS.exists(F("/settings.json"))){
+#endif
+		DEBUG_PRINT(F("Recreate settings file..."));
+		fs::File settingsFile = SPIFFS.open(F("/settings.json"), "w");
+		if (!settingsFile) {
+			DEBUG_PRINTLN(F("fail."));
+		}else{
 
-		String buf;
-		serializeJson(postObj, buf);
+			DEBUG_PRINTLN(F("done."));
+			DynamicJsonDocument doc(2048);
+			JsonObject postObj = doc.to<JsonObject>();
+//			postObj[F("localIP")] = WiFi.localIP().toString();
+			postObj[F("localRestPort")] = HTTP_REST_PORT;
+			postObj[F("localWSPort")] = WS_PORT;
 
-		settingsFile.print(F("var settings = "));
-		settingsFile.print(buf);
-		settingsFile.print(F(";"));
+			String buf;
+			serializeJson(postObj, buf);
 
-		settingsFile.close();
+			settingsFile.print(F("var settings = "));
+			settingsFile.print(buf);
+			settingsFile.print(";");
 
-//		serializeJson(doc, settingsFile);
-	    DEBUG_PRINTLN(F("success."));
-	}
+			settingsFile.close();
+
+	//		serializeJson(doc, settingsFile);
+			DEBUG_PRINTLN(F("success."));
+		}
+
+#ifndef WRITE_SETTINGS_IF_EXIST
+    }
+#endif
 
 	// Start inverter serial
 	DEBUG_PRINT(F("Initializing Inverter serial..."));
