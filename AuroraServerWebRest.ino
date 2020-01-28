@@ -18,10 +18,27 @@
 #include <WiFiManager.h>
 #include <SPI.h>
 
+#define SEND_EMAIL
+
+#ifdef SEND_EMAIL
 #include <EMailSender.h>
+#endif
 
 #include <Timezone.h>    // https://github.com/JChristensen/Timezone
 
+#define WS_ACTIVE
+
+#ifdef WS_ACTIVE
+#include <WebSocketsServer.h>
+#endif
+
+#define WS_PORT 8081
+#ifdef WS_ACTIVE
+	WebSocketsServer webSocket = WebSocketsServer(WS_PORT);
+
+
+	void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length);
+#endif
 
 
 // HEAP file
@@ -38,7 +55,7 @@
 #define BAT_RES_VALUE_VCC 10.0
 
 // Uncomment to enable server ftp.
-#define SERVER_FTP
+//#define SERVER_FTP
 //#define SERVER_HTTPS
 #define HARDWARE_SERIAL
 
@@ -72,7 +89,7 @@ char hostname[] = "InverterCentraline";
 #define DAILY_INTERVAL 10
 #define CUMULATIVE_INTERVAL 10
 #define CUMULATIVE_TOTAL_INTERVAL 10
-#define STATE_INTERVAL 10
+#define STATE_INTERVAL 1
 #define BATTERY_INTERVAL 20
 #define STATIC_DATA_INTERVAL 6 * 60
 
@@ -200,7 +217,17 @@ float setPrecision(float val, byte precision);
 #define DSP_GRID_CURRENT_ALL_FILENAME								F("current.jso")
 #define DSP_GRID_VOLTAGE_ALL_FILENAME								F("voltage.jso")
 
-EMailSender emailSend("smtp", "pwd");
+#define DSP_GRID_POWER_ALL_TYPE									F("power")		/* Global */
+#define DSP_GRID_CURRENT_ALL_TYPE								F("current")
+#define DSP_GRID_VOLTAGE_ALL_TYPE								F("voltage")
+
+#define CUMULATED_ENERGY_TYPE									F("cumulated")
+#define ERROR_TYPE												F("error")
+#define ERROR_INVERTER_TYPE										F("error_inverter")
+
+#ifdef SEND_EMAIL
+EMailSender emailSend("", "");
+#endif
 
 #ifdef SERVER_FTP
 FtpServer ftpSrv;   //set #define FTP_DEBUG in ESP8266FtpServer.h to see ftp verbose on serial
@@ -412,7 +439,7 @@ void setup() {
 
 		settingsFile.print(F("var settings = "));
 		settingsFile.print(buf);
-		settingsFile.print(";");
+		settingsFile.print(F(";"));
 
 		settingsFile.close();
 
@@ -495,7 +522,7 @@ void setup() {
 
 #ifdef SERVER_FTP
 //    SPIFFS.format();
-    ftpSrv.begin("aurora","aurora");    //username, password for ftp.  set ports in ESP8266FtpServer.h  (default 21, 50009 for PASV)
+    ftpSrv.begin(F("aurora"),F("aurora"));    //username, password for ftp.  set ports in ESP8266FtpServer.h  (default 21, 50009 for PASV)
     DEBUG_PRINTLN(F("FTP Server Started"));
 #endif
 
@@ -507,6 +534,12 @@ void setup() {
 
     DEBUG_PRINT(F("ERROR --> "));
     DEBUG_PRINTLN(!(fixedTime && sdStarted&& wifiConnected));
+
+#ifdef WS_ACTIVE
+	webSocket.begin();
+	webSocket.onEvent(webSocketEvent);
+	DEBUG_PRINTLN(F("WS Server Started"));
+#endif
 
 	errorLed(!(fixedTime && sdStarted&& wifiConnected && isFileSaveOK));
 
@@ -542,6 +575,10 @@ void loop() {
 	if (UpdateLocalTimeWithNTP.shouldRun()) {
 		UpdateLocalTimeWithNTP.run();
 	}
+
+#ifdef WS_ACTIVE
+	webSocket.loop();
+#endif
 
 	httpRestServer.handleClient();
 	httpServer.handleClient();
@@ -599,6 +636,203 @@ void leggiStatoBatteriaCallback() {
 	}
 
 }
+int lastAlarm = 0;
+
+bool saveInverterStats(String scopeDirectory, Aurora::DataState dataState){
+	if (!SD.exists(scopeDirectory)) {
+		SD.mkdir(scopeDirectory);
+	}
+
+	String filename = scopeDirectory + F("/alarStat.jso");
+
+	DynamicJsonDocument doc(2048);
+	JsonObject rootObj = doc.to<JsonObject>();
+
+	rootObj[F("lastUpdate")] = getEpochStringByParams(getLocalTime());
+
+	rootObj[F("alarmStateParam")] = dataState.alarmState;
+	rootObj[F("alarmState")] = dataState.getAlarmState();
+
+	rootObj[F("channel1StateParam")] = dataState.channel1State;
+	rootObj[F("channel1State")] = dataState.getDcDcChannel1State();
+
+	rootObj[F("channel2StateParam")] = dataState.channel2State;
+	rootObj[F("channel2State")] = dataState.getDcDcChannel2State();
+
+	rootObj[F("inverterStateParam")] = dataState.inverterState;
+	rootObj[F("inverterState")] = dataState.getInverterState();
+
+	DEBUG_PRINTLN(F("done."));
+
+	isFileSaveOK = saveJSonToAFile(&doc, filename);
+
+	return isFileSaveOK;
+}
+
+struct LastDataState {
+	byte asp;
+	byte c1sp;
+	byte c2sp;
+	byte isp;
+
+	bool variationFromPrevious = false;
+	bool inverterProblem = false;
+	bool firstElement = true;
+	bool needNotify = false;
+};
+
+LastDataState manageLastDataState(String scopeDirectory, Aurora::DataState dataState){
+	LastDataState lds;
+
+	String dayDirectory = getEpochStringByParams(getLocalTime(), (char*) "%Y%m%d");
+
+	String filenameAL = scopeDirectory + '/' + dayDirectory + F("/alarms.jso");
+
+	DynamicJsonDocument docAS(ALARM_IN_A_DAY);
+	JsonObject obj;
+
+	obj = getJSonFromFile(&docAS, filenameAL);
+
+	obj[F("lastUpdate")] = getEpochStringByParams(getLocalTime());
+
+	JsonArray data;
+	if (!obj.containsKey(F("data"))) {
+		data = obj.createNestedArray(F("data"));
+	} else {
+		data = obj[F("data")];
+	}
+
+	bool inverterProblem = dataState.alarmState > 0 || (dataState.inverterState != 2 && dataState.inverterState != 1);
+
+	lds.inverterProblem = inverterProblem;
+
+	bool firstElement = data.size() == 0;
+
+	lds.firstElement = firstElement;
+
+	if (inverterProblem || !firstElement) {
+		JsonObject lastData;
+		if (data.size() > 0) {
+			lastData = data[data.size() - 1];
+
+			lds.asp = lastData[F("asp")];
+			lds.c1sp = lastData[F("c1sp")];
+			lds.c2sp = lastData[F("c2sp")];
+			lds.isp = lastData[F("isp")];
+
+		}
+
+		bool variationFromPrevious = (data.size() > 0
+				&& (lastData[F("asp")] != dataState.alarmState
+						|| lastData[F("c1sp")] != dataState.channel1State
+						|| lastData[F("c2sp")] != dataState.channel2State
+						|| lastData[F("isp")] != dataState.inverterState));
+
+		lds.variationFromPrevious = variationFromPrevious;
+
+		byte ldState = lastData[F("isp")];
+
+		DEBUG_PRINT(F("Last data state --> "));
+		DEBUG_PRINTLN(ldState);
+
+		DEBUG_PRINT(F("Data state --> "));
+		DEBUG_PRINTLN(dataState.inverterState);
+
+		DEBUG_PRINT(F("Last data vs data state is different --> "));
+		DEBUG_PRINTLN(lastData[F("isp")] != dataState.inverterState);
+
+
+		DEBUG_PRINT(F("Inverter problem --> "));
+		DEBUG_PRINTLN(inverterProblem);
+
+		DEBUG_PRINT(F("firstElement --> "));
+		DEBUG_PRINTLN(firstElement);
+
+		DEBUG_PRINT(F("Variation From Previous --> "));
+		DEBUG_PRINTLN(variationFromPrevious);
+
+		lds.needNotify = false;
+
+		if ((inverterProblem && firstElement)
+				|| (!firstElement && variationFromPrevious)) {
+
+			lds.needNotify = true;
+
+			if (docAS.size()>(ALARM_IN_A_DAY-1024)){
+				DEBUG_PRINTLN(F("Too much data in a day, removed 4 elements"));
+				data.remove(0);
+				data.remove(1);
+				data.remove(2);
+				data.remove(3);
+//				for (int i = 0; i<4; i++){
+//					data.remove[(const char*)i];
+//				}
+			}
+
+			JsonObject objArrayData = data.createNestedObject();
+
+			objArrayData[F("h")] = getEpochStringByParams(getLocalTime(),
+					(char*) "%H%M");
+
+			objArrayData[F("asp")] = dataState.alarmState;
+			//			objArrayData[F("as")] = dataState.getAlarmState();
+
+			objArrayData[F("c1sp")] = dataState.channel1State;
+			//			objArrayData[F("c1s")] = dataState.getDcDcChannel1State();
+
+			objArrayData[F("c2sp")] = dataState.channel2State;
+			//			objArrayData[F("c2s")] = dataState.getDcDcChannel2State();
+
+			objArrayData[F("isp")] = dataState.inverterState;
+			//			objArrayData["is"] = dataState.getInverterState();
+
+			DEBUG_PRINTLN(F("Store alarms --> "));
+			//				serializeJson(doc, Serial);
+			DEBUG_PRINT(docAS.memoryUsage());
+			DEBUG_PRINTLN();
+
+			if (!SD.exists(scopeDirectory + '/' + dayDirectory)) {
+				SD.mkdir(scopeDirectory + '/' + dayDirectory);
+			}
+
+			isFileSaveOK = saveJSonToAFile(&docAS, filenameAL);
+		}
+	}
+	return lds;
+}
+
+#ifdef WS_ACTIVE
+void sendWSMessageAlarm(Aurora::DataState dataState, bool inverterProblem){
+	DEBUG_PRINT(F(" MEM Condition --> "));
+	DEBUG_PRINTLN(ESP.getFreeHeap())
+
+	DynamicJsonDocument docws(512);
+	JsonObject objws = docws.to<JsonObject>();
+	String dateFormatted = getEpochStringByParams(getLocalTime());
+	objws[F("type")] = ERROR_INVERTER_TYPE;
+	objws[F("date")] = dateFormatted;
+
+	JsonObject objValue = objws.createNestedObject(F("value"));
+
+	objValue[F("inverterProblem")] = inverterProblem;
+
+	objValue[F("asp")] = dataState.alarmState;
+	objValue[F("c1sp")] = dataState.channel1State;
+	objValue[F("c2sp")] = dataState.channel2State;
+	objValue[F("isp")] = dataState.inverterState;
+
+	objValue[F("alarm")] = dataState.getAlarmState();
+	objValue[F("ch1state")] = dataState.getDcDcChannel1State();
+	objValue[F("ch2state")] = dataState.getDcDcChannel2State();
+	objValue[F("state")] = dataState.getInverterState();
+
+	String buf;
+	serializeJson(objws, buf);
+
+	webSocket.broadcastTXT(buf);
+
+}
+#endif
 
 void leggiStatoInverterCallback() {
 	DEBUG_PRINT(F("Thread call (LeggiStatoInverterCallback) --> "));
@@ -607,6 +841,16 @@ void leggiStatoInverterCallback() {
 	DEBUG_PRINTLN(ESP.getFreeHeap())
 
 	Aurora::DataState dataState = inverter.readState();
+		if (lastAlarm==0){
+			dataState.alarmState = 2;
+			lastAlarm = 2;
+		}else{
+			dataState.alarmState = 0;
+			lastAlarm = 0;
+		}
+		dataState.state.readState = 1;
+
+
 	DEBUG_PRINT(F("Read state --> "));
 	DEBUG_PRINTLN(dataState.state.readState);
 
@@ -616,271 +860,172 @@ void leggiStatoInverterCallback() {
 		DEBUG_PRINT(F("Create json..."));
 
 		String scopeDirectory = F("alarms");
-		if (!SD.exists(scopeDirectory)) {
-			SD.mkdir(scopeDirectory);
-		}
 
-		String filename = scopeDirectory + F("/alarStat.jso");
+		saveInverterStats(scopeDirectory, dataState);
+
+		LastDataState lds = manageLastDataState(scopeDirectory, dataState);
+
+		sendWSMessageAlarm(dataState, lds.inverterProblem);
+#ifdef SEND_EMAIL
+
+				DEBUG_PRINT(F("MEM "));
+				DEBUG_PRINTLN(ESP.getFreeHeap());
+
+				if (lds.needNotify){
+					DEBUG_PRINT(F("Open config file..."));
+					fs::File configFile = SPIFFS.open(F("/mc/config.txt"), "r");
+					if (configFile) {
+						DEBUG_PRINTLN(F("done."));
+						DynamicJsonDocument doc(CONFIG_FILE_HEAP);
+						DeserializationError error = deserializeJson(doc, configFile);
+						if (error) {
+							// if the file didn't open, print an error:
+							DEBUG_PRINT(F("Error parsing JSON "));
+							DEBUG_PRINTLN(error.c_str());
+						}
+
+						// close the file:
+						configFile.close();
+
+						DEBUG_PRINT(F("MEM "));
+						DEBUG_PRINTLN(ESP.getFreeHeap());
+
+						JsonObject rootObj = doc.as<JsonObject>();
+
+						DEBUG_PRINT(F("After read config check serverSMTP and emailNotification "));
+						DEBUG_PRINTLN(rootObj.containsKey(F("serverSMTP")) && rootObj.containsKey(F("emailNotification")));
+
+						if (rootObj.containsKey(F("serverSMTP")) && rootObj.containsKey(F("emailNotification"))){
+	//						JsonObject serverConfig = rootObj["server"];
+							JsonObject serverSMTP = rootObj[F("serverSMTP")];
+							JsonObject emailNotification = rootObj[F("emailNotification")];
+
+							bool isNotificationEnabled = (emailNotification.containsKey(F("isNotificationEnabled")))?emailNotification[F("isNotificationEnabled")]:false;
+
+							DEBUG_PRINT(F("isNotificationEnabled "));
+							DEBUG_PRINTLN(isNotificationEnabled);
+
+							if (isNotificationEnabled){
+								const char* serverSMTPAddr = serverSMTP[F("server")];
+								emailSend.setSMTPServer(serverSMTPAddr);
+								uint16_t portSMTP = serverSMTP[F("port")];
+								emailSend.setSMTPPort(portSMTP);
+								const char* loginSMTP = serverSMTP[F("login")];
+								emailSend.setEMailLogin(loginSMTP);
+								const char* passwordSMTP = serverSMTP[F("password")];
+								emailSend.setEMailPassword(passwordSMTP);
+								const char* fromSMTP = serverSMTP[F("from")];
+								emailSend.setEMailFrom(fromSMTP);
+
+								DEBUG_PRINT(F("server "));
+								DEBUG_PRINTLN(serverSMTPAddr);
+								DEBUG_PRINT(F("port "));
+								DEBUG_PRINTLN(portSMTP);
+								DEBUG_PRINT(F("login "));
+								DEBUG_PRINTLN(loginSMTP);
+								DEBUG_PRINT(F("password "));
+								DEBUG_PRINTLN(passwordSMTP);
+								DEBUG_PRINT(F("from "));
+								DEBUG_PRINTLN(fromSMTP);
+
+								EMailSender::EMailMessage message;
+								const String sub = emailNotification[F("subject")];
+								message.subject = sub;
+
+								JsonArray emailList = emailNotification[F("emailList")];
+
+								DEBUG_PRINT(F("Email list "));
+
+								for (uint8_t i=0; i<emailList.size(); i++){
+									JsonObject emailElem = emailList[i];
+
+	//								byte asp = lastData[F("asp")];
+	//								byte c1sp = lastData[F("c1sp")];
+	//								byte c2sp = lastData[F("c2sp")];
+	//								byte isp = lastData[F("isp")];
+
+									const String alarm = emailElem[F("alarm")];
+									const String ch1 = emailElem[F("ch1")];
+									const String ch2 = emailElem[F("ch2")];
+									const String state = emailElem[F("state")];
+
+									DEBUG_PRINT(F("State value "));
+									DEBUG_PRINTLN(state);
+
+									DEBUG_PRINT(F("State value on_problem comparison "));
+									DEBUG_PRINTLN(state==F("on_problem"));
+
+									DEBUG_PRINT(F("Alarm value "));
+									DEBUG_PRINTLN(alarm);
+
+									DEBUG_PRINT(F("Alarm all comparison "));
+									DEBUG_PRINTLN(alarm==F("all"));
+
+									bool allNotification = (
+											(alarm==F("all") && lds.asp != dataState.alarmState)
+											||
+											(ch1==F("all") && lds.c1sp != dataState.channel1State)
+											||
+											(ch2==F("all") && lds.c2sp != dataState.channel2State)
+											||
+											(state==F("all") && lds.isp != dataState.inverterState)
+									);
+
+									bool onProblem = (
+											(alarm==F("on_problem") && dataState.alarmState > 0)
+											||
+											(ch1==F("on_problem") && dataState.channel1State != 2)
+											||
+											(ch2==F("on_problem") && dataState.channel1State != 2)
+											||
+											(state==F("on_problem") && (dataState.inverterState != 2 && dataState.inverterState != 1))
+									);
+
+									DEBUG_PRINT(F("Check allNotification "));
+									DEBUG_PRINTLN(allNotification);
+
+									DEBUG_PRINT(F("Check onProblem "));
+									DEBUG_PRINTLN(onProblem);
+
+									DEBUG_PRINT(F("MEM "));
+									DEBUG_PRINTLN(ESP.getFreeHeap());
+
+
+									if (
+											allNotification
+											||
+											onProblem
+									){
+										const String mp = emailNotification[F("messageProblem")];
+										const String mnp = emailNotification[F("messageNoProblem")];
+										message.message = ((lds.inverterProblem)?mp:mnp)+
+														F("<br>Alarm: ")+dataState.getAlarmState()+
+														F("<br>CH1: ")+dataState.getDcDcChannel1State() +
+														F("<br>CH2: ")+dataState.getDcDcChannel2State()+
+														F("<br>Stato: ")+dataState.getInverterState();
+
+										EMailSender::Response resp = emailSend.send(emailElem[F("email")], message);
+
+										DEBUG_PRINTLN(F("Sending status: "));
+										const String em = emailElem[F("email")];
+										DEBUG_PRINTLN(em);
+										DEBUG_PRINTLN(resp.status);
+										DEBUG_PRINTLN(resp.code);
+										DEBUG_PRINTLN(resp.desc);
+									}
 
-		DynamicJsonDocument doc(2048);
-		JsonObject rootObj = doc.to<JsonObject>();
 
-		rootObj[F("lastUpdate")] = getEpochStringByParams(getLocalTime());
-
-		rootObj[F("alarmStateParam")] = dataState.alarmState;
-		rootObj[F("alarmState")] = dataState.getAlarmState();
-
-		rootObj[F("channel1StateParam")] = dataState.channel1State;
-		rootObj[F("channel1State")] = dataState.getDcDcChannel1State();
-
-		rootObj[F("channel2StateParam")] = dataState.channel2State;
-		rootObj[F("channel2State")] = dataState.getDcDcChannel2State();
-
-		rootObj[F("inverterStateParam")] = dataState.inverterState;
-		rootObj[F("inverterState")] = dataState.getInverterState();
-
-		DEBUG_PRINTLN(F("done."));
-
-		isFileSaveOK = saveJSonToAFile(&doc, filename);
-
-		// If alarm present or inverterState not running
-//		if (dataState.alarmState>0 || dataState.inverterState!=2){
-
-		String dayDirectory = getEpochStringByParams(getLocalTime(), (char*) "%Y%m%d");
-
-		String filenameAL = scopeDirectory + '/' + dayDirectory + F("/alarms.jso");
-
-		DynamicJsonDocument docAS(ALARM_IN_A_DAY);
-		JsonObject obj;
-
-		obj = getJSonFromFile(&docAS, filenameAL);
-
-		obj[F("lastUpdate")] = getEpochStringByParams(getLocalTime());
-
-		JsonArray data;
-		if (!obj.containsKey(F("data"))) {
-			data = obj.createNestedArray(F("data"));
-		} else {
-			data = obj[F("data")];
-		}
-
-		bool inverterProblem = dataState.alarmState > 0 || (dataState.inverterState != 2 && dataState.inverterState != 1);
-
-		bool firstElement = data.size() == 0;
-
-		if (inverterProblem || !firstElement) {
-			JsonObject lastData;
-			if (data.size() > 0) {
-				lastData = data[data.size() - 1];
-			}
-
-			bool variationFromPrevious = (data.size() > 0
-					&& (lastData[F("asp")] != dataState.alarmState
-							|| lastData[F("c1sp")] != dataState.channel1State
-							|| lastData[F("c2sp")] != dataState.channel2State
-							|| lastData[F("isp")] != dataState.inverterState));
-
-			byte ldState = lastData[F("isp")];
-
-			DEBUG_PRINT(F("Last data state --> "));
-			DEBUG_PRINTLN(ldState);
-
-			DEBUG_PRINT(F("Data state --> "));
-			DEBUG_PRINTLN(dataState.inverterState);
-
-			DEBUG_PRINT(F("Last data vs data state is different --> "));
-			DEBUG_PRINTLN(lastData[F("isp")] != dataState.inverterState);
-
-
-			DEBUG_PRINT(F("Inverter problem --> "));
-			DEBUG_PRINTLN(inverterProblem);
-
-			DEBUG_PRINT(F("firstElement --> "));
-			DEBUG_PRINTLN(firstElement);
-
-			DEBUG_PRINT(F("Variation From Previous --> "));
-			DEBUG_PRINTLN(variationFromPrevious);
-
-			if ((inverterProblem && firstElement)
-					|| (!firstElement && variationFromPrevious)) {
-
-
-
-				JsonObject objArrayData = data.createNestedObject();
-
-				objArrayData[F("h")] = getEpochStringByParams(getLocalTime(),
-						(char*) "%H%M");
-
-				objArrayData[F("asp")] = dataState.alarmState;
-				//			objArrayData[F("as")] = dataState.getAlarmState();
-
-				objArrayData[F("c1sp")] = dataState.channel1State;
-				//			objArrayData[F("c1s")] = dataState.getDcDcChannel1State();
-
-				objArrayData[F("c2sp")] = dataState.channel2State;
-				//			objArrayData[F("c2s")] = dataState.getDcDcChannel2State();
-
-				objArrayData[F("isp")] = dataState.inverterState;
-				//			objArrayData["is"] = dataState.getInverterState();
-
-				DEBUG_PRINTLN(F("Store alarms --> "));
-				//				serializeJson(doc, Serial);
-				DEBUG_PRINT(docAS.memoryUsage());
-				DEBUG_PRINTLN();
-
-				if (!SD.exists(scopeDirectory + '/' + dayDirectory)) {
-					SD.mkdir(scopeDirectory + '/' + dayDirectory);
-				}
-
-				isFileSaveOK = saveJSonToAFile(&docAS, filenameAL);
-
-				DEBUG_PRINT(F("Open config file..."));
-				fs::File configFile = SPIFFS.open(F("/mc/config.txt"), "r");
-				if (configFile) {
-				    DEBUG_PRINTLN(F("done."));
-					DynamicJsonDocument doc(CONFIG_FILE_HEAP);
-					DeserializationError error = deserializeJson(doc, configFile);
-					if (error) {
-						// if the file didn't open, print an error:
-						DEBUG_PRINT(F("Error parsing JSON "));
-						DEBUG_PRINTLN(error.c_str());
-					}
-
-					// close the file:
-					configFile.close();
-
-					JsonObject rootObj = doc.as<JsonObject>();
-
-				    DEBUG_PRINT(F("After read config check serverSMTP and emailNotification "));
-				    DEBUG_PRINTLN(rootObj.containsKey(F("serverSMTP")) && rootObj.containsKey(F("emailNotification")));
-
-					if (rootObj.containsKey(F("serverSMTP")) && rootObj.containsKey(F("emailNotification"))){
-//						JsonObject serverConfig = rootObj["server"];
-						JsonObject serverSMTP = rootObj[F("serverSMTP")];
-						JsonObject emailNotification = rootObj[F("emailNotification")];
-
-						bool isNotificationEnabled = (emailNotification.containsKey(F("isNotificationEnabled")))?emailNotification[F("isNotificationEnabled")]:false;
-
-					    DEBUG_PRINT(F("isNotificationEnabled "));
-					    DEBUG_PRINTLN(isNotificationEnabled);
-
-						if (isNotificationEnabled){
-							const char* serverSMTPAddr = serverSMTP[F("server")];
-							emailSend.setSMTPServer(serverSMTPAddr);
-							uint16_t portSMTP = serverSMTP[F("port")];
-							emailSend.setSMTPPort(portSMTP);
-							const char* loginSMTP = serverSMTP[F("login")];
-							emailSend.setEMailLogin(loginSMTP);
-							const char* passwordSMTP = serverSMTP[F("password")];
-							emailSend.setEMailPassword(passwordSMTP);
-							const char* fromSMTP = serverSMTP[F("from")];
-							emailSend.setEMailFrom(fromSMTP);
-
-							DEBUG_PRINT(F("server "));
-							DEBUG_PRINTLN(serverSMTPAddr);
-							DEBUG_PRINT(F("port "));
-							DEBUG_PRINTLN(portSMTP);
-							DEBUG_PRINT(F("login "));
-							DEBUG_PRINTLN(loginSMTP);
-							DEBUG_PRINT(F("password "));
-							DEBUG_PRINTLN(passwordSMTP);
-							DEBUG_PRINT(F("from "));
-							DEBUG_PRINTLN(fromSMTP);
-
-							EMailSender::EMailMessage message;
-							const String sub = emailNotification[F("subject")];
-							message.subject = sub;
-
-							JsonArray emailList = emailNotification[F("emailList")];
-
-						    DEBUG_PRINT(F("Email list "));
-
-							for (uint8_t i=0; i<emailList.size(); i++){
-								JsonObject emailElem = emailList[i];
-
-								byte asp = lastData[F("asp")];
-								byte c1sp = lastData[F("c1sp")];
-								byte c2sp = lastData[F("c2sp")];
-								byte isp = lastData[F("isp")];
-
-								const String alarm = emailElem[F("alarm")];
-								const String ch1 = emailElem[F("ch1")];
-								const String ch2 = emailElem[F("ch2")];
-								const String state = emailElem[F("state")];
-
-							    DEBUG_PRINT(F("State value "));
-							    DEBUG_PRINTLN(state);
-
-							    DEBUG_PRINT(F("State value on_problem comparison "));
-							    DEBUG_PRINTLN(state==F("on_problem"));
-
-							    DEBUG_PRINT(F("Alarm value "));
-							    DEBUG_PRINTLN(alarm);
-
-							    DEBUG_PRINT(F("Alarm all comparison "));
-							    DEBUG_PRINTLN(alarm==F("all"));
-
-								bool allNotification = (
-										(alarm==F("all") && asp != dataState.alarmState)
-										||
-										(ch1==F("all") && c1sp != dataState.channel1State)
-										||
-										(ch2==F("all") && c2sp != dataState.channel2State)
-										||
-										(state==F("all") && isp != dataState.inverterState)
-								);
-
-								bool onProblem = (
-										(alarm==F("on_problem") && dataState.alarmState > 0)
-										||
-										(ch1==F("on_problem") && dataState.channel1State != 2)
-										||
-										(ch2==F("on_problem") && dataState.channel1State != 2)
-										||
-										(state==F("on_problem") && (dataState.inverterState != 2 && dataState.inverterState != 1))
-								);
-
-							    DEBUG_PRINT(F("Check allNotification "));
-							    DEBUG_PRINTLN(allNotification);
-
-							    DEBUG_PRINT(F("Check onProblem "));
-							    DEBUG_PRINTLN(onProblem);
-
-
-								if (
-										allNotification
-										||
-										onProblem
-								){
-									const String mp = emailNotification[F("messageProblem")];
-									const String mnp = emailNotification[F("messageNoProblem")];
-									message.message = ((inverterProblem)?mp:mnp)+
-													F("<br>Alarm: ")+dataState.getAlarmState()+
-													F("<br>CH1: ")+dataState.getDcDcChannel1State() +
-													F("<br>CH2: ")+dataState.getDcDcChannel2State()+
-													F("<br>Stato: ")+dataState.getInverterState();
-
-									EMailSender::Response resp = emailSend.send(emailElem[F("email")], message);
-
-									DEBUG_PRINTLN(F("Sending status: "));
-									const String em = emailElem[F("email")];
-									DEBUG_PRINTLN(em);
-									DEBUG_PRINTLN(resp.status);
-									DEBUG_PRINTLN(resp.code);
-									DEBUG_PRINTLN(resp.desc);
 								}
-
-
 							}
 						}
+					}else{
+						DEBUG_PRINTLN(F("fail."));
 					}
-				}else{
-				    DEBUG_PRINTLN(F("fail."));
 				}
-
-			}
-
-		}
+#endif
+//			}
+//
+//		}
 //		}
 	}
 
@@ -1021,6 +1166,44 @@ void cumulatedEnergyDaily(tm nowDt){
 	}
 }
 
+#ifdef WS_ACTIVE
+void sendWSCumulatedEnergy(	unsigned long energyLifetime,
+							unsigned long energyYearly,
+							unsigned long energyMonthly,
+							unsigned long energyWeekly,
+							unsigned long energyDaily){
+					DynamicJsonDocument docws(512);
+					JsonObject objws = docws.to<JsonObject>();
+					String dateFormatted = getEpochStringByParams(getLocalTime());
+					objws["type"] = CUMULATED_ENERGY_TYPE;
+					objws["date"] = dateFormatted;
+
+					JsonObject objValue = objws.createNestedObject("value");
+
+					objValue[F("lastUpdate")] = getEpochStringByParams(getLocalTime());
+
+					if (energyLifetime>0){
+						objValue[F("energyLifetime")] = energyLifetime;
+					}
+					if (energyYearly>0){
+						objValue[F("energyYearly")] = energyYearly;
+					}
+					if (energyMonthly>0){
+						objValue[F("energyMonthly")] = energyMonthly;
+					}
+					if (energyWeekly>0){
+						objValue[F("energyWeekly")] = energyWeekly;
+					}
+					if (energyDaily>0){
+						objValue[F("energyDaily")] = energyDaily;
+					}
+
+					String buf;
+					serializeJson(objws, buf);
+
+					webSocket.broadcastTXT(buf);
+}
+#endif
 void readTotals(tm nowDt){
 	String scopeDirectory = F("states");
 	// Save cumulative data
@@ -1055,6 +1238,10 @@ void readTotals(tm nowDt){
 				SD.mkdir(scopeDirectory);
 			}
 			if (dce.state.readState == 1 && energyLifetime) {
+#ifdef WS_ACTIVE
+				sendWSCumulatedEnergy(energyLifetime, energyYearly, energyMonthly, energyWeekly, energyDaily);
+#endif
+
 				String filename = scopeDirectory + F("/lastStat.jso");
 				String tagName = getEpochStringByParams(getLocalTime(), (char*) "%d");
 
@@ -1141,6 +1328,22 @@ void readTotals(tm nowDt){
 	}
 
 }
+#ifdef WS_ACTIVE
+void sendWSProductionDaily(String type, float val){
+	DynamicJsonDocument docws(512);
+	JsonObject objws = docws.to<JsonObject>();
+	String dateFormatted = getEpochStringByParams(getLocalTime());
+	objws["type"] = type;
+	objws["date"] = dateFormatted;
+
+	objws["value"] = val;
+
+	String buf;
+	serializeJson(objws, buf);
+
+	webSocket.broadcastTXT(buf);
+}
+#endif
 
 void readProductionDaily(tm nowDt){
 	String scopeDirectory = F("product");
@@ -1151,15 +1354,18 @@ void readProductionDaily(tm nowDt){
 		if (nowDt.tm_min % DAILY_INTERVAL == 0) {
 			byte read = DSP_GRID_POWER_ALL;
 			String filename = DSP_GRID_POWER_ALL_FILENAME;
+			String type = DSP_GRID_POWER_ALL_TYPE;
 
 			switch (i) {
 			case (1):
 				read = DSP_GRID_CURRENT_ALL;
 				filename = DSP_GRID_CURRENT_ALL_FILENAME;
+				type = DSP_GRID_CURRENT_ALL_TYPE;
 				break;
 			case (2):
 				read = DSP_GRID_VOLTAGE_ALL;
 				filename = DSP_GRID_VOLTAGE_ALL_FILENAME;
+				type = DSP_GRID_VOLTAGE_ALL_TYPE;
 				break;
 			}
 
@@ -1170,6 +1376,10 @@ void readProductionDaily(tm nowDt){
 				float val = dsp.value;
 
 				if (val && val > 0) {
+#ifdef WS_ACTIVE
+				sendWSProductionDaily(type, val);
+#endif
+
 					String dataDirectory = getEpochStringByParams(getLocalTime(),
 							(char*) "%Y%m%d");
 
@@ -1375,7 +1585,7 @@ void streamFile(const String filename){
 				DEBUG_PRINTLN(F("done."));
 			}else{
 				DEBUG_PRINTLN(F("Data not available!"));
-				httpRestServer.send(204, "text/html", "Data not available!");
+				httpRestServer.send(204, F("text/html"), F("Data not available!"));
 			}
 			fileToStream.close();
 		}else{
@@ -1398,7 +1608,7 @@ void getProduction(){
 		DEBUG_PRINTLN(F("No parameter"));
 	}else{     //Parameter found
 		DEBUG_PRINT(F("Read file: "));
-		String filename = "product/"+httpRestServer.arg(F("day"))+"/"+httpRestServer.arg(F("type"))+".jso";
+		String filename = "product/"+httpRestServer.arg("day")+"/"+httpRestServer.arg("type")+F(".jso");
 
 		DEBUG_PRINTLN(filename);
 
@@ -1763,7 +1973,7 @@ void sendCrossOriginHeader(){
 void restServerRouting() {
 //	httpRestServer.header("Access-Control-Allow-Headers: Authorization, Content-Type");
 //
-    httpRestServer.on("/", HTTP_GET, []() {
+    httpRestServer.on(F("/"), HTTP_GET, []() {
     	httpRestServer.send(200, F("text/html"),
             F("Welcome to the Inverter Centraline REST Web Server"));
     });
@@ -1860,6 +2070,46 @@ float setPrecision(float val, byte precision){
 uint8_t sdWrongReadNumber = 0;
 bool alreadySendNotification = false;
 
+unsigned long lastTimeSendErrorNotification = millis();
+
+#define DEBOUNCE_ERROR_NOTIFICATION 5000
+
+#ifdef WS_ACTIVE
+void sendWSErrorCentraline(){
+	if (lastTimeSendErrorNotification+DEBOUNCE_ERROR_NOTIFICATION<millis()){
+		DynamicJsonDocument docws(512);
+		JsonObject objws = docws.to<JsonObject>();
+		String dateFormatted = getEpochStringByParams(getLocalTime());
+		objws["type"] = ERROR_TYPE;
+		objws["date"] = dateFormatted;
+
+		JsonObject objValue = objws.createNestedObject("value");
+
+		objValue[F("h")] = getEpochStringByParams(getLocalTime());
+
+		const String ft = (fixedTime)?F("OK"):F("NO");
+		const String sd = (sdStarted)?F("OK"):F("NO");
+		const String wc = (wifiConnected)?F("OK"):F("NO");
+		const String sf = (isFileSaveOK)?F("OK"):F("NO");
+
+		objValue[F("fixedTime")] = fixedTime;
+		objValue[F("sdStarted")] = sdStarted;
+		objValue[F("wifiConnected")] = wifiConnected;
+		objValue[F("isFileSaveOK")] = isFileSaveOK;
+		objValue[F("sdWrongReadNumber")] = sdWrongReadNumber;
+
+
+
+		String buf;
+		serializeJson(objws, buf);
+
+		webSocket.broadcastTXT(buf);
+
+		lastTimeSendErrorNotification = millis();
+	}
+}
+#endif
+
 void errorLed(bool flag){
 	if (flag){
 		sdWrongReadNumber++;
@@ -1868,9 +2118,26 @@ void errorLed(bool flag){
 		alreadySendNotification = false;
 	}
 
+#ifdef WS_ACTIVE
+	if (!alreadySendNotification &&
+	(
+			!fixedTime
+			|| !sdStarted
+			|| !wifiConnected
+			|| !isFileSaveOK
+	)
+	){
+		sendWSErrorCentraline();
+	}
+#endif
+
+
 	digitalWrite(ERROR_PIN, flag);
 	if (!alreadySendNotification && sdWrongReadNumber>=SD_WRONG_WRITE_NUMBER_ALERT){
 		alreadySendNotification = true;
+
+#ifdef SEND_EMAIL
+
     	DEBUG_PRINT(F("Open config file..."));
 		fs::File configFile = SPIFFS.open(F("/mc/config.txt"), "r");
 		if (configFile) {
@@ -1892,8 +2159,8 @@ void errorLed(bool flag){
 			DEBUG_PRINTLN(rootObj.containsKey(F("serverSMTP")) && rootObj.containsKey(F("preferences")));
 
 			if (rootObj.containsKey(F("serverSMTP")) && rootObj.containsKey(F("preferences"))){
-				JsonObject serverSMTP = rootObj["serverSMTP"];
-				JsonObject preferences = rootObj["preferences"];
+				JsonObject serverSMTP = rootObj[F("serverSMTP")];
+				JsonObject preferences = rootObj[F("preferences")];
 
 				DEBUG_PRINT(F("(preferences.containsKey(adminEmail) && preferences[adminEmail]!="")"));
 				DEBUG_PRINTLN((preferences.containsKey(F("adminEmail")) && preferences[F("adminEmail")]!=""));
@@ -1939,7 +2206,7 @@ void errorLed(bool flag){
 									F("<br>Wrong saving attempts: ")+sdWrongReadNumber
 									;
 
-					const char* emailToSend = preferences["adminEmail"];
+					const char* emailToSend = preferences[F("adminEmail")];
 					EMailSender::Response resp = emailSend.send(emailToSend, message);
 
 					DEBUG_PRINTLN(F("Sending status: "));
@@ -1950,60 +2217,61 @@ void errorLed(bool flag){
 				}
 			}
 		}
+#endif
 	}
 }
 
 Timezone getTimezoneData(const String code){
 //	DEBUG_PRINT("CODE DST RETRIVED: ");
 //	DEBUG_PRINTLN(code);
-	if (code=="AETZ"){
+	if (code==F("AETZ")){
 		// Australia Eastern Time Zone (Sydney, Melbourne)
 		TimeChangeRule aEDT = {"AEDT", First, Sun, Oct, 2, 660};    // UTC + 11 hours
 		TimeChangeRule aEST = {"AEST", First, Sun, Apr, 3, 600};    // UTC + 10 hours
 		Timezone tzTmp = Timezone(aEDT, aEST);
 		return tzTmp;
-	}else if (code=="CET"){
-		DEBUG_PRINTLN("CET FIND");
+	}else if (code==F("CET")){
+		DEBUG_PRINTLN(F("CET FIND"));
 		// Central European Time (Frankfurt, Paris)
 		TimeChangeRule CEST = {"CEST", Last, Sun, Mar, 2, 120};     // Central European Summer Time
 		TimeChangeRule CET = {"CET ", Last, Sun, Oct, 3, 60};       // Central European Standard Time
 		Timezone tzTmp = Timezone(CEST, CET);
 		return tzTmp;
-	}else if(code=="MSK"){
+	}else if(code==F("MSK")){
 		// Moscow Standard Time (MSK, does not observe DST)
 		TimeChangeRule msk = {"MSK", Last, Sun, Mar, 1, 180};
 		Timezone tzTmp = Timezone(msk);
 		return tzTmp;
-	}else if(code=="UK"){
+	}else if(code==F("UK")){
 		// United Kingdom (London, Belfast)
 		TimeChangeRule BST = {"BST", Last, Sun, Mar, 1, 60};        // British Summer Time
 		TimeChangeRule GMT = {"GMT", Last, Sun, Oct, 2, 0};         // Standard Time
 		Timezone tzTmp = Timezone(BST, GMT);
 		return tzTmp;
-	}else if(code=="USCTZ"){
+	}else if(code==F("USCTZ")){
 		// US Central Time Zone (Chicago, Houston)
 		TimeChangeRule usCDT = {"CDT", Second, Sun, Mar, 2, -300};
 		TimeChangeRule usCST = {"CST", First, Sun, Nov, 2, -360};
 		Timezone tzTmp = Timezone(usCDT, usCST);
 		return tzTmp;
-	}else if(code=="USMTZ"){
+	}else if(code==F("USMTZ")){
 		// US Mountain Time Zone (Denver, Salt Lake City)
 		TimeChangeRule usMDT = {"MDT", Second, Sun, Mar, 2, -360};
 		TimeChangeRule usMST = {"MST", First, Sun, Nov, 2, -420};
 		Timezone tzTmp = Timezone(usMDT, usMST);
 		return tzTmp;
-	}else if(code=="ARIZONA"){
+	}else if(code==F("ARIZONA")){
 		// Arizona is US Mountain Time Zone but does not use DST
 		TimeChangeRule usMST = {"MST", First, Sun, Nov, 2, -420};
 		Timezone tzTmp = Timezone(usMST);
 		return tzTmp;
-	}else if(code=="USPTZ"){
+	}else if(code==F("USPTZ")){
 		// US Pacific Time Zone (Las Vegas, Los Angeles)
 		TimeChangeRule usPDT = {"PDT", Second, Sun, Mar, 2, -420};
 		TimeChangeRule usPST = {"PST", First, Sun, Nov, 2, -480};
 		Timezone tzTmp = Timezone(usPDT, usPST);
 		return tzTmp;
-	}else if(code=="UTC"){
+	}else if(code==F("UTC")){
 		// UTC
 		TimeChangeRule utcRule = {"UTC", Last, Sun, Mar, 1, 0};     // UTC
 		Timezone tzTmp = Timezone(utcRule);
@@ -2032,3 +2300,58 @@ time_t getLocalTime(void){
 	return tz.toLocal(now());
 }
 
+#ifdef WS_ACTIVE
+void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {
+
+    switch(type) {
+        case WStype_DISCONNECTED:
+			webSocket.sendTXT(num, "{\"connection\": false}");
+
+            DEBUG_PRINT(F(" Disconnected "));
+            DEBUG_PRINTLN(num, DEC);
+
+//            DEBUG_PRINTF_AI(F("[%u] Disconnected!\n"), num);
+            break;
+        case WStype_CONNECTED:
+            {
+                IPAddress ip = webSocket.remoteIP(num);
+//                DEBUG_PRINTF_AI(F("[%u] Connected from %d.%d.%d.%d url: %s\n"), num, ip[0], ip[1], ip[2], ip[3], payload);
+
+                DEBUG_PRINT(num);
+                DEBUG_PRINT(F("Connected from: "));
+                DEBUG_PRINT(ip.toString());
+                DEBUG_PRINT(F(" "));
+                DEBUG_PRINTLN((char*)payload);
+
+				// send message to client
+				webSocket.sendTXT(num, "{\"connection\": true}");
+            }
+            break;
+        case WStype_TEXT:
+//        	DEBUG_PRINTF_AI(F("[%u] get Text: %s\n"), num, payload);
+
+            // send message to client
+            // webSocket.sendTXT(num, "message here");
+
+            // send data to all connected clients
+            // webSocket.broadcastTXT("message here");
+            break;
+        case WStype_BIN:
+//        	DEBUG_PRINTF_AI(F("[%u] get binary length: %u\n"), num, length);
+            hexdump(payload, length);
+
+            // send message to client
+            // webSocket.sendBIN(num, payload, length);
+            break;
+        case WStype_ERROR:
+//        	DEBUG_PRINTF_AI(F("[%u] get binary length: %u\n"), num, length);
+        	DEBUG_PRINT(F("WS ERROR: "))
+        	DEBUG_PRINTLN((char*)payload);
+
+            // send message to client
+            // webSocket.sendBIN(num, payload, length);
+            break;
+    }
+
+}
+#endif
