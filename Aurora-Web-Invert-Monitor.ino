@@ -476,7 +476,7 @@ void setup() {
 	DEBUG_PRINT(F("Initializing SD card..."));
 
 	  // Initialize SD library
-	  while (!SD.begin()) {
+	  while (!SD.begin(CS_PIN)) {
 		Serial.println(F("Failed to initialize SD library"));
 		delay(1000);
 		sdStarted = false;
