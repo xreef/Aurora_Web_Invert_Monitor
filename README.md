@@ -205,16 +205,13 @@ Point and give an interface to set connection parameter.
 Thanks
 ------
 
-1.  [ABB Aurora Web Inverter Monitor (WIM): project
-    introduction](https://www.mischianti.org/2019/05/15/abb-ex-power-one-aurora-web-inverter-monitor-wim-project-introduction-1/)
-2.  [ABB Aurora Web Inverter Monitor (WIM): wiring Arduino to
-    RS-485](https://www.mischianti.org/2020/09/01/abb-aurora-web-inverter-monitor-wim-wiring-arduino-to-rs-485-2/)
-3.  [ABB Aurora Web Inverter Monitor (WIM): storage
-    devices](https://www.mischianti.org/2020/09/11/abb-aurora-web-inverter-monitor-wim-storage-devices-3/)
-4.  ABB Aurora Web Inverter Monitor (WIM): debug and notification
-5.  ABB Aurora Web Inverter Monitor (WIM): set time and UPS
-6.  ABB Aurora Web Inverter Monitor (WIM): WIFI configuration and REST
-    Server
-7.  ABB Aurora Web Inverter Monitor (WIM): WebSocket and Web Server
-8.  ABB Aurora Web Inverter Monitor (WIM): wiring and PCB
-9.  […]\
+[ABB Aurora Web Inverter Monitor (WIM): project introduction](https://www.mischianti.org/2019/05/15/abb-ex-power-one-aurora-web-inverter-monitor-wim-project-introduction-1/)
+[ABB Aurora Web Inverter Monitor (WIM): wiring Arduino to RS-485](https://www.mischianti.org/2020/09/01/abb-aurora-web-inverter-monitor-wim-wiring-arduino-to-rs-485-2/)
+[ABB Aurora Web Inverter Monitor (WIM): storage devices](https://www.mischianti.org/2020/09/11/abb-aurora-web-inverter-monitor-wim-storage-devices-3/)
+[ABB Aurora Web Inverter Monitor (WIM): debug and notification](https://www.mischianti.org/it/2020/09/30/abb-aurora-web-inverter-monitor-wim-notifiche-e-debug-4/)
+[ABB Aurora Web Inverter Monitor (WIM): set time and UPS](https://www.mischianti.org/2020/10/05/abb-aurora-web-inverter-centraline-wic-set-time-and-manage-battery-ups-part-5/)
+[ABB Aurora Web Inverter Monitor (WIM): WIFI configuration and REST Server](https://www.mischianti.org/2021/01/04/abb-power-one-aurora-web-inverter-monitor-wim-wifi-configuration-and-rest-server-6/)
+[ABB Aurora Web Inverter Monitor (WIM): WebSocket and Web Server]()
+[ABB Aurora Web Inverter Monitor (WIM): Wiring and PCB soldering]()
+[ABB Aurora web inverter Monitor (WIM): 3D printed case to complete project]()
+[ABB Aurora web inverter monitor (WIM): repair E013 error]()
