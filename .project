@@ -107,6 +107,11 @@
 			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.7.4/libraries/SPI</locationURI>
 		</link>
 		<link>
+			<name>libraries/Thread</name>
+			<type>2</type>
+			<locationURI>ECLIPSE_HOME/arduinoPlugin/libraries/Thread/0.0.2</locationURI>
+		</link>
+		<link>
 			<name>libraries/TimeLib</name>
 			<type>2</type>
 			<locationURI>WORKSPACE_LOC/TimeLib</locationURI>
