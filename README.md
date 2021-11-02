@@ -21,6 +21,8 @@ by [Renzo Mischianti]
 
 [![Watch the video](https://img.youtube.com/vi/uInRM3YqIv0/hqdefault.jpg)](https://www.youtube.com/watch?v=uInRM3YqIv0)
 
+02/11/2021 Fix default language to English
+
 Hi all, I put solar panels over my roof some years agò, the company that
 installed them had also guaranteed me a production monitoring and
 analysis system, but they forgot to tell me that it would be free only
