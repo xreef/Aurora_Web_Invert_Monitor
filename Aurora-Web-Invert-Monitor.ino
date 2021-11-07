@@ -1,3 +1,15 @@
+/*
+ * This work is licensed under the
+ * Creative Commons Attribution-NonCommercial-NoDerivs 3.0 Italy License.
+ * To view a copy of this license, visit
+ * http://creativecommons.org/licenses/by-nc-nd/3.0/it/
+ * or send a letter to Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
+ *
+ * Renzo Mischianti <www.mischianti.org>
+ *
+ * https://www.mischianti.org/category/project/web-monitoring-station-for-abb-aurora-inverter-ex-power-one-now-fimer/
+ *
+ */
 #include "Arduino.h"
 #include <Aurora.h>
 #include <SD.h>
