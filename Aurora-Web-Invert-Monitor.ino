@@ -1045,10 +1045,11 @@ void leggiStatoInverterCallback() {
 														F("<br>CH2: ")+dataState.getDcDcChannel2State()+
 														F("<br>Stato: ")+dataState.getInverterState();
 
-										EMailSender::Response resp = emailSend.send(emailElem[F("email")], message);
+										const String em = emailElem[F("email")];
+										EMailSender::Response resp = emailSend.send(em, message);
 
 										DEBUG_PRINTLN(F("Sending status: "));
-										const String em = emailElem[F("email")];
+
 										DEBUG_PRINTLN(em);
 										DEBUG_PRINTLN(resp.status);
 										DEBUG_PRINTLN(resp.code);

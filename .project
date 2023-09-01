@@ -34,17 +34,17 @@
 		<link>
 			<name>core/core</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.7.4/cores/esp8266</locationURI>
+			<location>D:/program/Sloeber/arduinoPlugin/packages/esp8266/hardware/esp8266/2.4.2/cores/esp8266</location>
 		</link>
 		<link>
 			<name>core/variant</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.7.4/variants/d1_mini</locationURI>
+			<location>D:/program/Sloeber/arduinoPlugin/packages/esp8266/hardware/esp8266/2.4.2/variants/d1_mini</location>
 		</link>
 		<link>
 			<name>libraries/ArduinoJson</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/libraries/ArduinoJson/6.15.1</locationURI>
+			<location>D:/program/Sloeber/arduinoPlugin/libraries/ArduinoJson/6.5.0-beta</location>
 		</link>
 		<link>
 			<name>libraries/ArduinoThread</name>
@@ -54,7 +54,7 @@
 		<link>
 			<name>libraries/DNSServer</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.7.4/libraries/DNSServer</locationURI>
+			<location>D:/program/Sloeber/arduinoPlugin/packages/esp8266/hardware/esp8266/2.4.2/libraries/DNSServer</location>
 		</link>
 		<link>
 			<name>libraries/EMailSender</name>
@@ -62,49 +62,39 @@
 			<location>D:/Projects/Arduino/sloeber-workspace-lib/EMailSender</location>
 		</link>
 		<link>
-			<name>libraries/ESP8266SdFat</name>
-			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.7.4/libraries/ESP8266SdFat</locationURI>
-		</link>
-		<link>
 			<name>libraries/ESP8266WebServer</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.7.4/libraries/ESP8266WebServer</locationURI>
+			<location>D:/program/Sloeber/arduinoPlugin/packages/esp8266/hardware/esp8266/2.4.2/libraries/ESP8266WebServer</location>
 		</link>
 		<link>
 			<name>libraries/ESP8266WiFi</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.7.4/libraries/ESP8266WiFi</locationURI>
+			<location>D:/program/Sloeber/arduinoPlugin/packages/esp8266/hardware/esp8266/2.4.2/libraries/ESP8266WiFi</location>
 		</link>
 		<link>
 			<name>libraries/ESP8266mDNS</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.7.4/libraries/ESP8266mDNS</locationURI>
+			<location>D:/program/Sloeber/arduinoPlugin/packages/esp8266/hardware/esp8266/2.4.2/libraries/ESP8266mDNS</location>
 		</link>
 		<link>
 			<name>libraries/Hash</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.7.4/libraries/Hash</locationURI>
+			<location>D:/program/Sloeber/arduinoPlugin/packages/esp8266/hardware/esp8266/2.4.2/libraries/Hash</location>
 		</link>
 		<link>
 			<name>libraries/NTPClient</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/libraries/NTPClient/3.2.0</locationURI>
+			<location>D:/program/Sloeber/arduinoPlugin/libraries/NTPClient/3.2.1</location>
 		</link>
 		<link>
 			<name>libraries/SD</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.7.4/libraries/SD</locationURI>
-		</link>
-		<link>
-			<name>libraries/SDFS</name>
-			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.7.4/libraries/SDFS</locationURI>
+			<location>D:/program/Sloeber/arduinoPlugin/packages/esp8266/hardware/esp8266/2.4.2/libraries/SD</location>
 		</link>
 		<link>
 			<name>libraries/SPI</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.7.4/libraries/SPI</locationURI>
+			<location>D:/program/Sloeber/arduinoPlugin/packages/esp8266/hardware/esp8266/2.4.2/libraries/SPI</location>
 		</link>
 		<link>
 			<name>libraries/Thread</name>
@@ -119,12 +109,12 @@
 		<link>
 			<name>libraries/Timezone</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/libraries/Timezone/1.2.4</locationURI>
+			<location>D:/program/Sloeber/arduinoPlugin/libraries/Timezone/1.2.4</location>
 		</link>
 		<link>
 			<name>libraries/WebSockets</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/libraries/WebSockets/2.2.0</locationURI>
+			<location>D:/program/Sloeber/arduinoPlugin/libraries/WebSockets/2.3.5</location>
 		</link>
 		<link>
 			<name>libraries/WiFiManager</name>
@@ -134,7 +124,7 @@
 		<link>
 			<name>libraries/Wire</name>
 			<type>2</type>
-			<locationURI>ECLIPSE_HOME/arduinoPlugin/packages/esp8266/hardware/esp8266/2.7.4/libraries/Wire</locationURI>
+			<location>D:/program/Sloeber/arduinoPlugin/packages/esp8266/hardware/esp8266/2.4.2/libraries/Wire</location>
 		</link>
 		<link>
 			<name>libraries/aurora_communication_protocol</name>
